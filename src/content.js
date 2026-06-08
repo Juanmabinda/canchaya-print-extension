@@ -21,6 +21,15 @@ const BRAND = "mitienda"
 const SOURCE = `${BRAND}-print`
 const RESPONSE_SOURCE = `${BRAND}-print-response`
 
+// Log de carga: si el cajero abre F12 en el POS y NO ve esto, el
+// content_script no se esta inyectando (sin permisos al sitio, mismatch
+// de matches en manifest, o desactivada para este host).
+try {
+  console.info(`[${SOURCE}] content_script cargado v${chrome.runtime.getManifest().version}`)
+} catch (e) {
+  console.info(`[${SOURCE}] content_script cargado (sin runtime?)`, e)
+}
+
 window.addEventListener("message", async (event) => {
   // Solo procesamos mensajes del mismo window (no de iframes externos).
   if (event.source !== window) return
@@ -28,6 +37,7 @@ window.addEventListener("message", async (event) => {
   if (!data || data.source !== SOURCE) return
 
   const requestId = data.request_id || null
+  console.debug(`[${SOURCE}] msg recibido:`, data.type, "req=", requestId)
   try {
     if (data.type === "PING") {
       // Responder inmediato sin tocar el service worker — sirve para que el

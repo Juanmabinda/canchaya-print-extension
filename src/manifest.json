@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Mi Tienda Print",
   "description": "Imprime tickets, comandas y etiquetas desde Mi Tienda POS sin instalar agente externo. Soporta impresoras t\u00e9rmicas USB y LAN (cualquiera instalada en Windows/Mac).",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvwMNKpPQZpmyPLXaHUAE3iZXYRY0stZhS46crbh2XfeP4+Lj6uFxugL1sztegV3ALzq51pmZ85tiV0+Sy9tMf/m48iVlCpL6nOi141XSSs4dLUSCdzk04Mii7q6IiRuhok1FrxSS9Mh1wjdayXC3MvPicCLuWjP5fQm/MqzZ7dJ9oF0I0TsqvSpZX6+mkeQfVmWQeZ/AUUYEJcXoM4KMGqq7wu6oLjLGbrx/ui90XhL93EJN3/wMt5FCsQaI1/rntTrX6yLgrBkJ9VVOMAl39RW3qfH7fi+oS9I5/W+MKuoHX1faRcGXnrSNZVbIbL9EVSB0BU70Tk9MA1b/G19ITwIDAQAB",
   "action": {
     "default_title": "Mi Tienda Print",
