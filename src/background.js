@@ -151,24 +151,33 @@ async function handlePrintTest() {
 }
 
 async function handlePrintJob(msg) {
-  const { device_id, content, escpos_base64, pdf_base64, nm_type, job_payload } = msg
+  const { device_id, content, escpos_base64, pdf_base64, nm_type, job_payload, print_target } = msg
   const storage = await chrome.storage.local.get([STORAGE_KEYS.PRIMARY_PRINTER])
-  const printerName = device_id || storage[STORAGE_KEYS.PRIMARY_PRINTER]
-  if (!printerName) throw new Error("Sin impresora destino")
+
+  // Si viene print_target del server (Printer record con connection=lan o usb)
+  // se lo pasamos crudo al binario — el ruteo USB/LAN lo decide ahi (cross
+  // platform, mismo flow Mac/Win). Si NO viene print_target (test print del
+  // popup), fallback a primary_printer del storage como impresora del SO.
+  const target = print_target || (() => {
+    const name = device_id || storage[STORAGE_KEYS.PRIMARY_PRINTER]
+    if (!name) return null
+    return { kind: "system", name }
+  })()
+  if (!target) throw new Error("Sin impresora destino")
 
   // Camino A: el server nos pasa el payload del PrintJob tal cual (comanda /
-  // shelf_label). El binario nativo tiene los encoders ESC/POS full —
-  // bold, doble alto, alineacion, codepage, QR, barcode, separadores —
-  // solo le reenviamos el JSON y el printer_name.
+  // shelf_label). El binario nativo tiene los encoders ESC/POS full y
+  // ademas el ruteo USB/LAN. Le reenviamos el JSON + print_target.
   if (nm_type === "PRINT_COMANDA" || nm_type === "PRINT_LABEL") {
     return nmSendAndUnwrap({
       type: nm_type,
-      printer_name: printerName,
+      print_target: target,
       job: job_payload || {}
     })
   }
 
-  // Camino B (legacy): bytes raw o texto plano.
+  // Camino B (legacy): bytes raw o texto plano. Tambien lleva print_target
+  // para que PRINT_RAW pueda ir a LAN o USB segun corresponda.
   let bytes
   if (escpos_base64) {
     bytes = escpos_base64
@@ -179,7 +188,7 @@ async function handlePrintJob(msg) {
   } else {
     throw new Error("Sin contenido a imprimir")
   }
-  return submitRawPrint(printerName, bytes)
+  return submitRawPrintWithTarget(target, bytes)
 }
 
 async function nmSendAndUnwrap(msg) {
@@ -210,11 +219,18 @@ function encodeMinimalEscPos(text) {
   return btoa(bin)
 }
 
-// Envia PRINT_RAW al binario nativo via Native Messaging.
+// Envia PRINT_RAW al binario nativo via Native Messaging. Acepta target
+// tipo {kind:"system",name} | {kind:"network",host,port}; el binario
+// rutea. Mantenemos un wrapper printerName por nombre para el test del
+// popup que solo conoce el nombre de la impresora del SO.
 async function submitRawPrint(printerName, b64) {
+  return submitRawPrintWithTarget({ kind: "system", name: printerName }, b64)
+}
+
+async function submitRawPrintWithTarget(target, b64) {
   const resp = await nmSend({
     type: "PRINT_RAW",
-    printer_name: printerName,
+    print_target: target,
     b64
   })
   if (resp?.type === "PRINT_OK") {
