@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="CE5BC884-48D7-4511-98BB-FA7E529D24E0"
+  <Product Id="61E44474-84B8-4A2D-9BA6-5833A3804DD5"
            Name="Mi Tienda Print Agent"
            Language="1033"
-           Version="0.10.12.0"
+           Version="0.10.13.0"
            Manufacturer="Mi Tienda POS"
            UpgradeCode="3a5e1f02-7c44-4d97-9d3b-3a0c1e9f5b40">
 
@@ -17,13 +17,17 @@
          instala uno nuevo con version mayor. -->
     <Upgrade Id="3a5e1f02-7c44-4d97-9d3b-3a0c1e9f5b40">
       <UpgradeVersion Minimum="0.0.0"
-                      Maximum="0.10.12.0"
+                      Maximum="0.10.13.0"
                       IncludeMinimum="yes"
                       IncludeMaximum="no"
                       Property="OLDERVERSIONBEINGUPGRADED" />
     </Upgrade>
     <InstallExecuteSequence>
       <RemoveExistingProducts After="InstallInitialize" />
+      <!-- FixManifest se schedulea aca tambien (wixl solo tolera un
+           InstallExecuteSequence por Product). After="InstallFiles" para que
+           el .ps1 ya este copiado al disco. -->
+      <Custom Action="FixManifest" After="InstallFiles">NOT Installed OR REINSTALL</Custom>
     </InstallExecuteSequence>
 
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />
@@ -33,7 +37,7 @@
         <Directory Id="INSTALLDIR" Name="MiTiendaPrint">
 
           <Component Id="cmpBinary"
-                     Guid="E9C6E991-0D00-4591-8044-DF91D48A899A"
+                     Guid="8DD1FBCD-69DC-44AB-96CD-052E83EE1945"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\Mi Tienda POS\MiTiendaPrint"
@@ -48,7 +52,7 @@
           </Component>
 
           <Component Id="cmpManifest"
-                     Guid="629C1085-021C-437F-9DA0-8B36331A2846"
+                     Guid="0DEB5818-6CDF-408C-8B0F-03D8EB489499"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\Mi Tienda POS\MiTiendaPrint"
@@ -59,12 +63,17 @@
             <File Id="filManifest"
                   Name="ar.mitiendapos.print.json"
                   Source="/Users/andress/juanma/canchaya-print-extension/installers/build/msi-mitienda/ar.mitiendapos.print.json" />
+            <!-- Script de fixup que reescribe el JSON con path absoluto en
+                 postinstall (Chrome on Win requiere absoluto). -->
+            <File Id="filFixManifestPS1"
+                  Name="fix_manifest.ps1"
+                  Source="/Users/andress/juanma/canchaya-print-extension/installers/build/msi-mitienda/fix_manifest.ps1" />
           </Component>
 
           <!-- Tres entries de registry, uno por navegador. KeyPath en el
                propio RegistryValue para que wix lo trackee. -->
           <Component Id="cmpRegChrome"
-                     Guid="A5BF77AA-1BDC-4FD3-BD63-68A08C44D6D3"
+                     Guid="07098344-79ED-40B4-89AF-2BB0511AE35D"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Google\Chrome\NativeMessagingHosts\ar.mitiendapos.print">
@@ -75,7 +84,7 @@
           </Component>
 
           <Component Id="cmpRegEdge"
-                     Guid="F8C7832A-D75A-4A29-8D10-CFB48181D9F0"
+                     Guid="6A901415-0D08-4528-8422-7B0A388FAA5E"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Microsoft\Edge\NativeMessagingHosts\ar.mitiendapos.print">
@@ -86,7 +95,7 @@
           </Component>
 
           <Component Id="cmpRegBrave"
-                     Guid="9CE33BFD-407E-4254-892B-7A33ECA6C9E3"
+                     Guid="F96F8EFB-B4CE-4A0C-BC82-5976845378F5"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\ar.mitiendapos.print">
@@ -107,6 +116,19 @@
       <ComponentRef Id="cmpRegEdge" />
       <ComponentRef Id="cmpRegBrave" />
     </Feature>
+
+    <!-- CustomAction: ejecuta fix_manifest.ps1 al final del install para
+         reescribir el JSON con el path absoluto del binario. Sin esto, Chrome
+         en Windows tira "Specified native messaging host not found".
+         El <Custom> que invoca esta accion vive en el primer
+         <InstallExecuteSequence> mas arriba (wixl solo tolera uno). -->
+    <Property Id="POWERSHELLEXE" Value="powershell.exe" />
+    <CustomAction Id="FixManifest"
+                  Property="POWERSHELLEXE"
+                  ExeCommand='-NoProfile -ExecutionPolicy Bypass -File "[INSTALLDIR]fix_manifest.ps1" -Brand "mitienda"'
+                  Execute="deferred"
+                  Impersonate="yes"
+                  Return="ignore" />
 
   </Product>
 </Wix>

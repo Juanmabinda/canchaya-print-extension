@@ -74,22 +74,18 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 "$GO120" build \
 popd > /dev/null
 ls -la "$BUILD_DIR/$BINARY_NAME.exe"
 
-# 2. Manifest JSON del NM host. Path absoluto: %LOCALAPPDATA% se resuelve a
-#    C:\Users\<user>\AppData\Local en install-time. Lo escribimos con %ENV%
-#    embebido — Chrome NO expande variables en el "path", asi que el JSON
-#    final tiene que tener un path concreto.
-#    Solucion: en lugar de %LOCALAPPDATA%, el path queda relativo al MSI:
-#    Wix InstallFolder = LocalAppDataFolder\INSTALL_DIR. Wix copia el JSON
-#    despues de escribir las variables [APPDATA]. Pero JSON no soporta
-#    propiedades de Wix dentro. Workaround: generar el JSON con un sentinel
-#    y reescribirlo con una CustomAction. wixl SOPORTA WixCA en modo basico:
-#    usamos "WixSilentExec" para correr cmd.exe que reescribe el archivo
-#    con el path real (envvar %LOCALAPPDATA%).
+# 2. Manifest JSON del NM host.
 #
-# Mas simple aun: el archivo JSON lo metemos como wxs File con un
-# placeholder, y NO lo tocamos despues. El path en el JSON es relativo
-# al manifest: ".\<binary>". Chrome desde la version 80 soporta paths
-# relativos en el "path" del manifest (los resuelve relativo al JSON).
+# Chrome en Windows requiere path ABSOLUTO en el campo "path" (Mac si
+# soporta relativo, pero Win no — pasa "Specified native messaging host
+# not found"). El path tiene que ser %LOCALAPPDATA%\<INSTALL_DIR>\<bin>.
+#
+# wixl no soporta XmlFile/IniFile/CustomAction CA para reescribir contenido,
+# asi que la estrategia es:
+#  - JSON inicial con path relativo (sirve solo como semilla).
+#  - Un .ps1 que se ejecuta en postinstall y SOBREESCRIBE el JSON con el
+#    path absoluto resuelto del entorno del usuario.
+#  - CustomAction de wxs que invoca el .ps1.
 cat > "$BUILD_DIR/${HOST_NAME}.json" <<JSON
 {
   "name": "${HOST_NAME}",
@@ -99,6 +95,46 @@ cat > "$BUILD_DIR/${HOST_NAME}.json" <<JSON
   "allowed_origins": ["chrome-extension://${EXT_ID}/"]
 }
 JSON
+
+# El postinstall .ps1. Corre en contexto del usuario que instala (gracias a
+# Impersonate="yes" + Execute="commit") y resuelve %LOCALAPPDATA% a la ruta
+# real. Para Edge y Brave tambien — copia el JSON corregido a los 3 paths
+# de NM hosts si los navegadores estan instalados.
+cat > "$BUILD_DIR/fix_manifest.ps1" <<'PS'
+param([string]$Brand)
+$ErrorActionPreference = "Continue"
+$installDir = if ($Brand -eq "canchaya") { "CanchaYaPrint" } else { "MiTiendaPrint" }
+$binaryName = if ($Brand -eq "canchaya") { "canchaya-print.exe" } else { "mitienda-print.exe" }
+$hostName   = if ($Brand -eq "canchaya") { "ar.canchaya.print" } else { "ar.mitiendapos.print" }
+$extId      = if ($Brand -eq "canchaya") { "nblbfplhkfcmmpilpamdcholgjkjpflg" } else { "mjjbahhakjijjaebjifddiocmmoilflo" }
+$display    = if ($Brand -eq "canchaya") { "CanchaYa Print" } else { "Mi Tienda Print" }
+
+$dir = Join-Path $env:LOCALAPPDATA $installDir
+$binPath = Join-Path $dir $binaryName
+$jsonPath = Join-Path $dir "$hostName.json"
+
+$obj = [ordered]@{
+  name = $hostName
+  description = "$display Native Messaging Host"
+  path = $binPath
+  type = "stdio"
+  allowed_origins = @("chrome-extension://$extId/")
+}
+$json = $obj | ConvertTo-Json -Depth 5
+Set-Content -Path $jsonPath -Value $json -Encoding UTF8
+
+# Tambien copiamos a Edge y Brave si tienen sus paths de NM hosts
+# expandidos (sino, Chrome solo usa registry → lee el del registry que
+# apunta a [INSTALLDIR]<host>.json, que es el que acabamos de reescribir).
+# No es necesario duplicar el archivo — los 3 registry keys ya apuntan al
+# mismo JSON. Pero verifico que la escritura quedo bien.
+if (Test-Path $jsonPath) {
+  Write-Host "Manifest reescrito en $jsonPath con path absoluto."
+} else {
+  Write-Error "ERROR: no se pudo escribir $jsonPath"
+  exit 1
+}
+PS
 
 # 3. Generar GUIDs deterministicos para los componentes (uno por archivo,
 # uno por registry value). wixl matchea por GUID al hacer upgrade.
@@ -138,6 +174,10 @@ cat > "$BUILD_DIR/installer.wxs" <<WXS
     </Upgrade>
     <InstallExecuteSequence>
       <RemoveExistingProducts After="InstallInitialize" />
+      <!-- FixManifest se schedulea aca tambien (wixl solo tolera un
+           InstallExecuteSequence por Product). After="InstallFiles" para que
+           el .ps1 ya este copiado al disco. -->
+      <Custom Action="FixManifest" After="InstallFiles">NOT Installed OR REINSTALL</Custom>
     </InstallExecuteSequence>
 
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />
@@ -173,6 +213,11 @@ cat > "$BUILD_DIR/installer.wxs" <<WXS
             <File Id="filManifest"
                   Name="${HOST_NAME}.json"
                   Source="${BUILD_DIR}/${HOST_NAME}.json" />
+            <!-- Script de fixup que reescribe el JSON con path absoluto en
+                 postinstall (Chrome on Win requiere absoluto). -->
+            <File Id="filFixManifestPS1"
+                  Name="fix_manifest.ps1"
+                  Source="${BUILD_DIR}/fix_manifest.ps1" />
           </Component>
 
           <!-- Tres entries de registry, uno por navegador. KeyPath en el
@@ -221,6 +266,19 @@ cat > "$BUILD_DIR/installer.wxs" <<WXS
       <ComponentRef Id="cmpRegEdge" />
       <ComponentRef Id="cmpRegBrave" />
     </Feature>
+
+    <!-- CustomAction: ejecuta fix_manifest.ps1 al final del install para
+         reescribir el JSON con el path absoluto del binario. Sin esto, Chrome
+         en Windows tira "Specified native messaging host not found".
+         El <Custom> que invoca esta accion vive en el primer
+         <InstallExecuteSequence> mas arriba (wixl solo tolera uno). -->
+    <Property Id="POWERSHELLEXE" Value="powershell.exe" />
+    <CustomAction Id="FixManifest"
+                  Property="POWERSHELLEXE"
+                  ExeCommand='-NoProfile -ExecutionPolicy Bypass -File "[INSTALLDIR]fix_manifest.ps1" -Brand "${BRAND}"'
+                  Execute="deferred"
+                  Impersonate="yes"
+                  Return="ignore" />
 
   </Product>
 </Wix>
