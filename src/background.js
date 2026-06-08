@@ -112,9 +112,9 @@ async function handlePrintTest() {
     await chrome.storage.local.get([STORAGE_KEYS.PRIMARY_PRINTER, STORAGE_KEYS.CLUB_NAME])
   if (!printerName) throw new Error("Configurá una impresora primaria primero")
 
-  // ESC/POS minimal: texto + corte. Mientras no haya un encoder completo,
-  // alcanza para confirmar que la cadena extension → native app → printer
-  // funciona end-to-end.
+  // Texto plano: el binario nativo lo encode con ESC/POS basico (init,
+  // texto, LF, feed, cut). Mismo path que un PRINT_RAW pero con plantilla
+  // local — confirma que la cadena extension → native app → printer va.
   const text = `\n*** PRUEBA ***\n${clubName || CURRENT_BRAND.display_name}\n${new Date().toLocaleString("es-AR")}\n\nSi ves esto, la extension funciona.\n\n\n\n`
   const bytes = encodeMinimalEscPos(text)
   return submitRawPrint(printerName, bytes)

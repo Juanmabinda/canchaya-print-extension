@@ -47,11 +47,25 @@ async function refreshStatus() {
 }
 
 async function loadPrinters(preselectId) {
+  // Spinner mientras el binario nativo arranca + enumera impresoras. En
+  // Mac la primera vez CUPS auto-crea la cola USB en raw mode lo que puede
+  // tardar 5-10s; en Win es instantaneo. Mostramos feedback claro.
+  const sel = $("printer-select"), saveBtn = $("save-printer-btn"),
+        testBtn = $("test-btn"), loading = $("printer-loading"),
+        status = $("printer-status")
+  loading.hidden = false
+  sel.hidden = true; saveBtn.hidden = true; testBtn.hidden = true
+  status.textContent = ""
+
   const r = await chrome.runtime.sendMessage({ type: "LIST_PRINTERS" })
-  const sel = $("printer-select")
+
+  loading.hidden = true
+  sel.hidden = false; saveBtn.hidden = false; testBtn.hidden = false
+
   sel.innerHTML = '<option value="">— elegí una —</option>'
   if (!r?.ok) {
-    $("printer-status").textContent = `Error: ${r?.error || "no se pudo listar"}`
+    status.textContent = `Error: ${r?.error || "no se pudo listar"}`
+    status.className = "small err"
     return
   }
   r.printers.forEach((p) => {
@@ -61,7 +75,8 @@ async function loadPrinters(preselectId) {
     if (p.id === preselectId) opt.selected = true
     sel.appendChild(opt)
   })
-  $("printer-status").textContent = `${r.printers.length} impresoras detectadas`
+  status.textContent = `${r.printers.length} impresora${r.printers.length === 1 ? "" : "s"} detectada${r.printers.length === 1 ? "" : "s"}`
+  status.className = "small muted"
 }
 
 $("pair-btn").addEventListener("click", async () => {
@@ -105,13 +120,16 @@ $("save-printer-btn").addEventListener("click", async () => {
 })
 
 $("test-btn").addEventListener("click", async () => {
-  $("printer-status").textContent = "Enviando…"
+  $("printer-status").innerHTML = '<span class="spinner"></span> Imprimiendo…'
   $("printer-status").className = "small muted"
   const r = await chrome.runtime.sendMessage({ type: "PRINT_TEST" })
-  $("printer-status").textContent = r?.ok
-    ? `Enviado — status ${r.status}`
-    : `Error: ${r?.error || "no se pudo imprimir"}`
-  $("printer-status").className = r?.ok ? "small ok" : "small err"
+  if (r?.ok) {
+    $("printer-status").textContent = `✓ Impreso${r.bytes ? ` (${r.bytes} bytes)` : ""}`
+    $("printer-status").className = "small ok"
+  } else {
+    $("printer-status").textContent = `Error: ${r?.error || "no se pudo imprimir"}`
+    $("printer-status").className = "small err"
+  }
 })
 
 async function init() {

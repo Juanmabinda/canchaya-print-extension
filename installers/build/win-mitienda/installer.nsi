@@ -2,14 +2,14 @@
 ; Instala el binario en %LOCALAPPDATA%\MiTiendaPrint\ y registra el NM host.
 
 !define APP_NAME "Mi Tienda Print Agent"
-!define APP_VERSION "0.10.4"
+!define APP_VERSION "0.10.5"
 !define INSTALL_FOLDER "MiTiendaPrint"
 !define BINARY_NAME "mitienda-print.exe"
 !define HOST_NAME "ar.mitiendapos.print"
 !define EXT_ID "mjjbahhakjijjaebjifddiocmmoilflo"
 
 Name "${APP_NAME}"
-OutFile "/Users/andress/juanma/canchaya-print-extension/installers/dist\MiTiendaPrintAgent-0.10.4.exe"
+OutFile "/Users/andress/juanma/canchaya-print-extension/installers/dist\MiTiendaPrintAgent-0.10.5.exe"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
 InstallDir "$LOCALAPPDATA\${INSTALL_FOLDER}"

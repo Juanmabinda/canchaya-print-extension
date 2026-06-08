@@ -72,6 +72,18 @@
       border: 1px solid #d4d4d4;
     }
     button.secondary:hover { background: #f3f4f6; }
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #d4d4d4;
+      border-top-color: #f97316;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .small { font-size: 11px; color: #666; }
     .ok { color: #047857; }
     .err { color: #b91c1c; }
@@ -97,13 +109,17 @@
   </div>
 
   <div id="printer-section" class="section" hidden>
-    <h2>2. Impresora</h2>
-    <select id="printer-select">
+    <h2>2. Impresora de prueba</h2>
+    <div id="printer-loading" class="small muted" hidden>
+      <span class="spinner"></span> Buscando impresoras…
+    </div>
+    <select id="printer-select" hidden>
       <option value="">— elegí una —</option>
     </select>
-    <button id="save-printer-btn">Guardar impresora</button>
-    <button id="test-btn" class="secondary">Imprimir prueba</button>
+    <button id="save-printer-btn" hidden>Guardar impresora</button>
+    <button id="test-btn" class="secondary" hidden>Imprimir prueba</button>
     <p id="printer-status" class="small muted"></p>
+    <p class="small muted" style="margin-top:10px">Para usar varias impresoras con roles (mostrador / cocina / barra), configuralas desde el <strong>admin del POS</strong> → Configuración → Impresoras. La extensión solo necesita estar pareada — los jobs se rutean solos.</p>
   </div>
 
   <script src="popup.js"></script>
