@@ -121,25 +121,41 @@ async function handlePrintTest() {
 }
 
 async function handlePrintJob(msg) {
-  const { device_id, content, escpos_base64, pdf_base64 } = msg
+  const { device_id, content, escpos_base64, pdf_base64, nm_type, job_payload } = msg
   const storage = await chrome.storage.local.get([STORAGE_KEYS.PRIMARY_PRINTER])
   const printerName = device_id || storage[STORAGE_KEYS.PRIMARY_PRINTER]
   if (!printerName) throw new Error("Sin impresora destino")
 
-  // Por ahora soportamos solo bytes raw (ESC/POS). PDFs vienen en Fase 2 —
-  // requieren que el binario nativo los pasee a un job de impresion via
-  // GDI / Quartz en lugar de RAW directo al spooler.
+  // Camino A: el server nos pasa el payload del PrintJob tal cual (comanda /
+  // shelf_label). El binario nativo tiene los encoders ESC/POS full —
+  // bold, doble alto, alineacion, codepage, QR, barcode, separadores —
+  // solo le reenviamos el JSON y el printer_name.
+  if (nm_type === "PRINT_COMANDA" || nm_type === "PRINT_LABEL") {
+    return nmSendAndUnwrap({
+      type: nm_type,
+      printer_name: printerName,
+      job: job_payload || {}
+    })
+  }
+
+  // Camino B (legacy): bytes raw o texto plano.
   let bytes
   if (escpos_base64) {
     bytes = escpos_base64
   } else if (content) {
-    bytes = btoa(encodeMinimalEscPos(content))
+    bytes = encodeMinimalEscPos(content)
   } else if (pdf_base64) {
     throw new Error("PDF printing — no soportado todavia (proxima version)")
   } else {
     throw new Error("Sin contenido a imprimir")
   }
   return submitRawPrint(printerName, bytes)
+}
+
+async function nmSendAndUnwrap(msg) {
+  const resp = await nmSend(msg)
+  if (resp?.type === "PRINT_OK") return { ok: true, bytes: resp.bytes }
+  throw new Error(resp?.error || `print fallo (${resp?.type || "sin respuesta"})`)
 }
 
 // Encoder minimal de ESC/POS: solo texto + alimentaciones + corte.
