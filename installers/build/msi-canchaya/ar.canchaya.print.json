@@ -1,0 +1,7 @@
+{
+  "name": "ar.canchaya.print",
+  "description": "CanchaYa Print Native Messaging Host",
+  "path": "canchaya-print.exe",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://nblbfplhkfcmmpilpamdcholgjkjpflg/"]
+}

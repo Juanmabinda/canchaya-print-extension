@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="4006773B-80CC-4FE0-A70F-B4F2D052A0F4"
+  <Product Id="F0FBA823-1FC8-43CC-B4A2-A38DE7CE9D37"
            Name="Mi Tienda Print Agent"
            Language="1033"
-           Version="0.10.6.0"
+           Version="0.10.9.0"
            Manufacturer="Mi Tienda POS"
            UpgradeCode="3a5e1f02-7c44-4d97-9d3b-3a0c1e9f5b40">
 
@@ -17,7 +17,7 @@
          instala uno nuevo con version mayor. -->
     <Upgrade Id="3a5e1f02-7c44-4d97-9d3b-3a0c1e9f5b40">
       <UpgradeVersion Minimum="0.0.0"
-                      Maximum="0.10.6.0"
+                      Maximum="0.10.9.0"
                       IncludeMinimum="yes"
                       IncludeMaximum="no"
                       Property="OLDERVERSIONBEINGUPGRADED" />
@@ -33,7 +33,7 @@
         <Directory Id="INSTALLDIR" Name="MiTiendaPrint">
 
           <Component Id="cmpBinary"
-                     Guid="AD6FF66A-61A3-49EB-AFB1-EAF439C4FA88"
+                     Guid="C2325811-DD1A-45F6-84C0-DFF5C04B3562"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\Mi Tienda POS\MiTiendaPrint"
@@ -48,7 +48,7 @@
           </Component>
 
           <Component Id="cmpManifest"
-                     Guid="970B6484-7F40-4597-8662-0615FD835D7E"
+                     Guid="2E13F74A-F157-4E6C-AB7D-CDB98B54A8D2"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\Mi Tienda POS\MiTiendaPrint"
@@ -64,7 +64,7 @@
           <!-- Tres entries de registry, uno por navegador. KeyPath en el
                propio RegistryValue para que wix lo trackee. -->
           <Component Id="cmpRegChrome"
-                     Guid="84CEA459-56E4-4239-8159-8501D6DD31D7"
+                     Guid="4D37A0D7-0642-451A-97A3-C36079797C82"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Google\Chrome\NativeMessagingHosts\ar.mitiendapos.print">
@@ -75,7 +75,7 @@
           </Component>
 
           <Component Id="cmpRegEdge"
-                     Guid="A668EB37-61AD-4C83-A804-03FFF89DC76E"
+                     Guid="9B357002-F3F2-4F73-9E1B-D0089F6FF997"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Microsoft\Edge\NativeMessagingHosts\ar.mitiendapos.print">
@@ -86,7 +86,7 @@
           </Component>
 
           <Component Id="cmpRegBrave"
-                     Guid="705F3E64-63A8-4809-978D-17C291EF1491"
+                     Guid="7AA7211B-31BF-4645-9FD1-F322BABDDEC4"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\ar.mitiendapos.print">
