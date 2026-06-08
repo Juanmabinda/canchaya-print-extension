@@ -56,19 +56,19 @@ const MESSAGE_HANDLERS = {
 
 async function handlePairAgent({ code, server }) {
   const baseUrl = (server || DEFAULT_SERVER).replace(/\/$/, "")
-  const url = `${baseUrl}/api/agent_pair`
-  // Endpoint legacy del agente Go: { code } → { token, club_id, club_name }.
-  // Reusamos el mismo flow para no inventar uno nuevo.
+  // Pareo one-shot via /api/extension/pair/claim. El POS admin genera el
+  // codigo (que vive 10 min en cache asociado al club), la extension lo
+  // canjea aca y recibe el token del club.
+  const url = `${baseUrl}/api/extension/pair/claim`
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Accept": "application/json" },
     body: JSON.stringify({ code })
   })
+  const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const txt = await res.text().catch(() => "")
-    throw new Error(`Pareo falló (${res.status}): ${txt.slice(0, 200)}`)
+    throw new Error(data?.error || `Pareo falló (${res.status})`)
   }
-  const data = await res.json()
   if (!data?.token) throw new Error("Respuesta sin token")
   await chrome.storage.local.set({
     [STORAGE_KEYS.TOKEN]: data.token,
@@ -126,11 +126,60 @@ async function handlePrintTest() {
   return submitJobAsPdf(deviceId, "Prueba", text)
 }
 
-async function handlePrintJob({ device_id, title, content }) {
-  const target = device_id ||
-    (await chrome.storage.local.get([STORAGE_KEYS.PRIMARY_PRINTER]))[STORAGE_KEYS.PRIMARY_PRINTER]
+async function handlePrintJob(msg) {
+  const { device_id, title, content, pdf_url, pdf_base64 } = msg
+  const storage = await chrome.storage.local.get([STORAGE_KEYS.PRIMARY_PRINTER, STORAGE_KEYS.TOKEN])
+  const target = device_id || storage[STORAGE_KEYS.PRIMARY_PRINTER]
   if (!target) throw new Error("Sin impresora destino")
-  return submitJobAsPdf(target, title || "Ticket", content || "")
+
+  // 3 formas de pasar el contenido:
+  //   1. pdf_url: la extension lo descarga (preferida — el POS server genera
+  //      el PDF con toda la logica de layout / promos / fiscal y nos lo pasa).
+  //   2. pdf_base64: pasado directo (offline / agente local generado).
+  //   3. content (texto plano): generamos PDF minimal aca (legacy / debug).
+  let b64
+  if (pdf_url) {
+    b64 = await fetchPdfAsBase64(pdf_url, storage[STORAGE_KEYS.TOKEN])
+  } else if (pdf_base64) {
+    b64 = pdf_base64
+  } else {
+    return submitJobAsPdf(target, title || "Ticket", content || "")
+  }
+  return submitB64Pdf(target, title || "Ticket", b64)
+}
+
+async function fetchPdfAsBase64(url, token) {
+  const headers = { "Accept": "application/pdf" }
+  // Authorization opcional: si el endpoint del POS exige autenticacion del
+  // agente para descargar, va el token. Endpoints publicos (signed URL) no
+  // lo necesitan — el header extra no molesta.
+  if (token) headers["Authorization"] = `Bearer ${token}`
+  const res = await fetch(url, { headers })
+  if (!res.ok) throw new Error(`PDF fetch falló (${res.status})`)
+  const buf = await res.arrayBuffer()
+  const u8 = new Uint8Array(buf)
+  let bin = ""
+  // Chunked para evitar stack overflow con PDFs >100KB.
+  const CHUNK = 0x8000
+  for (let i = 0; i < u8.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(null, u8.subarray(i, i + CHUNK))
+  }
+  return btoa(bin)
+}
+
+async function submitB64Pdf(printerId, title, b64) {
+  const job = {
+    printerId,
+    title: title || "Ticket",
+    ticket: { version: "1.0" },
+    contentType: "application/pdf",
+    document: b64
+  }
+  const result = await chrome.printing.submitJob({ job })
+  if (result?.status === "OK" || result?.status === "INPROGRESS") {
+    return { ok: true, status: result.status, job_id: result.jobId }
+  }
+  throw new Error(`submitJob status=${result?.status || "UNKNOWN"}`)
 }
 
 async function handleGetStatus() {
@@ -154,27 +203,11 @@ async function handleGetStatus() {
 async function submitJobAsPdf(printerId, title, text) {
   const pdfBlob = renderMinimalPdf(text)
   const buf = await pdfBlob.arrayBuffer()
-  // Encode base64 manualmente — Blob → base64 sin FileReader (que no existe
-  // en service workers MV3).
   const u8 = new Uint8Array(buf)
   let bin = ""
   for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i])
   const b64 = btoa(bin)
-
-  const job = {
-    printerId,
-    title: title || "Ticket",
-    ticket: { version: "1.0" },
-    contentType: "application/pdf",
-    document: b64
-  }
-  // En MV3 chrome.printing.submitJob devuelve Promise. La API legacy con
-  // callback tira un warning pero sigue funcionando.
-  const result = await chrome.printing.submitJob({ job })
-  if (result?.status === "OK" || result?.status === "INPROGRESS") {
-    return { ok: true, status: result.status, job_id: result.jobId }
-  }
-  throw new Error(`submitJob status=${result?.status || "UNKNOWN"}`)
+  return submitB64Pdf(printerId, title, b64)
 }
 
 // PDF minimo de texto monoespaciado — armado a mano para evitar dependencia
