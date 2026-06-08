@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="4006773B-80CC-4FE0-A70F-B4F2D052A0F4"
+           Name="Mi Tienda Print Agent"
+           Language="1033"
+           Version="0.10.6.0"
+           Manufacturer="Mi Tienda POS"
+           UpgradeCode="3a5e1f02-7c44-4d97-9d3b-3a0c1e9f5b40">
+
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perUser"
+             Description="Mi Tienda Print Native Messaging Host" />
+
+    <!-- Upgrade explicito (mas portable que MajorUpgrade en wixl): el viejo
+         MSI con mismo UpgradeCode se desinstala automaticamente cuando se
+         instala uno nuevo con version mayor. -->
+    <Upgrade Id="3a5e1f02-7c44-4d97-9d3b-3a0c1e9f5b40">
+      <UpgradeVersion Minimum="0.0.0"
+                      Maximum="0.10.6.0"
+                      IncludeMinimum="yes"
+                      IncludeMaximum="no"
+                      Property="OLDERVERSIONBEINGUPGRADED" />
+    </Upgrade>
+    <InstallExecuteSequence>
+      <RemoveExistingProducts After="InstallInitialize" />
+    </InstallExecuteSequence>
+
+    <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="INSTALLDIR" Name="MiTiendaPrint">
+
+          <Component Id="cmpBinary"
+                     Guid="AD6FF66A-61A3-49EB-AFB1-EAF439C4FA88"
+                     Win64="yes">
+            <RegistryValue Root="HKCU"
+                           Key="Software\Mi Tienda POS\MiTiendaPrint"
+                           Name="Installed"
+                           Type="integer"
+                           Value="1"
+                           KeyPath="yes" />
+            <File Id="filBinary"
+                  Name="mitienda-print.exe"
+                  Source="/Users/andress/juanma/canchaya-print-extension/installers/build/msi-mitienda/mitienda-print.exe" />
+            <RemoveFolder Id="rmInstallDir" On="uninstall" />
+          </Component>
+
+          <Component Id="cmpManifest"
+                     Guid="970B6484-7F40-4597-8662-0615FD835D7E"
+                     Win64="yes">
+            <RegistryValue Root="HKCU"
+                           Key="Software\Mi Tienda POS\MiTiendaPrint"
+                           Name="ManifestInstalled"
+                           Type="integer"
+                           Value="1"
+                           KeyPath="yes" />
+            <File Id="filManifest"
+                  Name="ar.mitiendapos.print.json"
+                  Source="/Users/andress/juanma/canchaya-print-extension/installers/build/msi-mitienda/ar.mitiendapos.print.json" />
+          </Component>
+
+          <!-- Tres entries de registry, uno por navegador. KeyPath en el
+               propio RegistryValue para que wix lo trackee. -->
+          <Component Id="cmpRegChrome"
+                     Guid="84CEA459-56E4-4239-8159-8501D6DD31D7"
+                     Win64="yes">
+            <RegistryKey Root="HKCU"
+                         Key="Software\Google\Chrome\NativeMessagingHosts\ar.mitiendapos.print">
+              <RegistryValue Type="string"
+                             Value="[INSTALLDIR]ar.mitiendapos.print.json"
+                             KeyPath="yes" />
+            </RegistryKey>
+          </Component>
+
+          <Component Id="cmpRegEdge"
+                     Guid="A668EB37-61AD-4C83-A804-03FFF89DC76E"
+                     Win64="yes">
+            <RegistryKey Root="HKCU"
+                         Key="Software\Microsoft\Edge\NativeMessagingHosts\ar.mitiendapos.print">
+              <RegistryValue Type="string"
+                             Value="[INSTALLDIR]ar.mitiendapos.print.json"
+                             KeyPath="yes" />
+            </RegistryKey>
+          </Component>
+
+          <Component Id="cmpRegBrave"
+                     Guid="705F3E64-63A8-4809-978D-17C291EF1491"
+                     Win64="yes">
+            <RegistryKey Root="HKCU"
+                         Key="Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\ar.mitiendapos.print">
+              <RegistryValue Type="string"
+                             Value="[INSTALLDIR]ar.mitiendapos.print.json"
+                             KeyPath="yes" />
+            </RegistryKey>
+          </Component>
+
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="Main" Title="Mi Tienda Print Agent" Level="1">
+      <ComponentRef Id="cmpBinary" />
+      <ComponentRef Id="cmpManifest" />
+      <ComponentRef Id="cmpRegChrome" />
+      <ComponentRef Id="cmpRegEdge" />
+      <ComponentRef Id="cmpRegBrave" />
+    </Feature>
+
+  </Product>
+</Wix>

@@ -1,0 +1,7 @@
+{
+  "name": "ar.mitiendapos.print",
+  "description": "Mi Tienda Print Native Messaging Host",
+  "path": "mitienda-print.exe",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://mjjbahhakjijjaebjifddiocmmoilflo/"]
+}
