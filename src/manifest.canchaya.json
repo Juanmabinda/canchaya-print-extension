@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "CanchaYa Print",
+  "description": "Imprime comandas, tickets y etiquetas desde CanchaYa POS sin instalar agente externo. Soporta impresoras térmicas USB y LAN (cualquiera instalada en Windows/Mac).",
+  "version": "0.0.1",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "CanchaYa Print",
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "printing",
+    "printerProvider",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://canchaya.ar/*",
+    "https://staging.canchaya.ar/*",
+    "https://canchalibre.app/*",
+    "https://staging.canchalibre.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://canchaya.ar/*",
+        "https://staging.canchaya.ar/*",
+        "https://canchalibre.app/*",
+        "https://staging.canchalibre.app/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ]
+}

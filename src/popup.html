@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mi Tienda Print</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 16px;
+      background: #f8f8f8;
+    }
+    h1 {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 0 0 12px;
+      color: #222;
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+    .pill.online { background: #d1fae5; color: #047857; }
+    .pill.offline { background: #fee2e2; color: #b91c1c; }
+    .section {
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .section h2 {
+      font-size: 11px;
+      font-weight: 700;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin: 0 0 8px;
+    }
+    label { font-size: 12px; color: #444; }
+    input, select, button {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      font-size: 13px;
+      border-radius: 6px;
+      border: 1px solid #d4d4d4;
+      background: white;
+      margin-top: 4px;
+    }
+    input:focus, select:focus { outline: 2px solid #f97316; outline-offset: -1px; }
+    button {
+      cursor: pointer;
+      background: #f97316;
+      color: white;
+      font-weight: 600;
+      border: none;
+      margin-top: 8px;
+    }
+    button:hover { background: #ea580c; }
+    button.secondary {
+      background: white;
+      color: #444;
+      border: 1px solid #d4d4d4;
+    }
+    button.secondary:hover { background: #f3f4f6; }
+    .small { font-size: 11px; color: #666; }
+    .ok { color: #047857; }
+    .err { color: #b91c1c; }
+    .muted { color: #999; }
+  </style>
+</head>
+<body>
+  <h1>Mi Tienda Print <span id="status-pill" class="pill offline">No conectada</span></h1>
+
+  <div id="pair-section" class="section">
+    <h2>1. Conectar</h2>
+    <label>Código del POS</label>
+    <input id="code" placeholder="ABC123" maxlength="8" autocapitalize="characters" autocomplete="off">
+    <button id="pair-btn">Conectar</button>
+    <p id="pair-status" class="small muted"></p>
+  </div>
+
+  <div id="paired-section" class="section" hidden>
+    <h2>Estado</h2>
+    <p class="small"><strong id="club-name"></strong></p>
+    <button id="unpair-btn" class="secondary">Desvincular</button>
+  </div>
+
+  <div id="printer-section" class="section" hidden>
+    <h2>2. Impresora</h2>
+    <select id="printer-select">
+      <option value="">— elegí una —</option>
+    </select>
+    <button id="save-printer-btn">Guardar impresora</button>
+    <button id="test-btn" class="secondary">Imprimir prueba</button>
+    <p id="printer-status" class="small muted"></p>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
