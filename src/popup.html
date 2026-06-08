@@ -109,15 +109,31 @@
   </div>
 
   <div id="printer-section" class="section" hidden>
-    <h2>2. Impresora de prueba</h2>
-    <div id="printer-loading" class="small muted" hidden>
-      <span class="spinner"></span> Buscando impresoras…
+    <h2>2. Impresora</h2>
+
+    <!-- Vista "vinculada": cuando ya hay primary guardado, mostramos el nombre
+         directo. El popup NO listea impresoras al abrir (eso tardaba 5-10s en
+         Mac la primera vez) — solo si el cajero quiere cambiarla. -->
+    <div id="printer-current" hidden>
+      <p class="small muted" style="margin: 0 0 4px">Vinculada actualmente:</p>
+      <p style="margin: 0 0 10px; font-weight: 600; word-break: break-word" id="printer-current-name"></p>
+      <button id="test-btn" class="secondary">Imprimir prueba</button>
+      <button id="change-printer-btn" class="secondary">Cambiar impresora</button>
     </div>
-    <select id="printer-select" hidden>
-      <option value="">— elegí una —</option>
-    </select>
-    <button id="save-printer-btn" hidden>Guardar impresora</button>
-    <button id="test-btn" class="secondary" hidden>Imprimir prueba</button>
+
+    <!-- Vista "elegir": solo se monta cuando el cajero hace primera vez o
+         clickea "Cambiar". Aca corremos LIST_PRINTERS. -->
+    <div id="printer-picker" hidden>
+      <div id="printer-loading" class="small muted" hidden>
+        <span class="spinner"></span> Buscando impresoras…
+      </div>
+      <select id="printer-select" hidden>
+        <option value="">— elegí una —</option>
+      </select>
+      <button id="save-printer-btn" hidden>Guardar impresora</button>
+      <button id="refresh-printers-btn" class="secondary" hidden>Buscar de nuevo</button>
+    </div>
+
     <p id="printer-status" class="small muted"></p>
     <p class="small muted" style="margin-top:10px">Para usar varias impresoras con roles (mostrador / cocina / barra), configuralas desde el <strong>admin del POS</strong> → Configuración → Impresoras. La extensión solo necesita estar pareada — los jobs se rutean solos.</p>
   </div>

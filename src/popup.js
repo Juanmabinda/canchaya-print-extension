@@ -43,7 +43,23 @@ async function refreshStatus() {
 
   $("club-name").textContent = s.club_name || `Club #${s.club_id || "?"}`
 
-  if (s.paired) await loadPrinters(s.primary_printer)
+  if (!s.paired) return
+
+  // Si ya hay impresora vinculada: mostrarla directo + botones Test/Cambiar.
+  // No enumeramos impresoras al abrir (CUPS la primera vez tarda 5-10s en
+  // Mac — frustante si el cajero solo abrio el popup para verificar el
+  // estado).
+  if (s.primary_printer) {
+    $("printer-current").hidden = false
+    $("printer-picker").hidden = true
+    $("printer-current-name").textContent = s.primary_printer
+    $("printer-status").textContent = ""
+  } else {
+    // Primera vez: ir directo al picker. Disparamos LIST_PRINTERS automatico.
+    $("printer-current").hidden = true
+    $("printer-picker").hidden = false
+    await loadPrinters(null)
+  }
 }
 
 async function loadPrinters(preselectId) {
@@ -51,16 +67,17 @@ async function loadPrinters(preselectId) {
   // Mac la primera vez CUPS auto-crea la cola USB en raw mode lo que puede
   // tardar 5-10s; en Win es instantaneo. Mostramos feedback claro.
   const sel = $("printer-select"), saveBtn = $("save-printer-btn"),
-        testBtn = $("test-btn"), loading = $("printer-loading"),
+        refreshBtn = $("refresh-printers-btn"),
+        loading = $("printer-loading"),
         status = $("printer-status")
   loading.hidden = false
-  sel.hidden = true; saveBtn.hidden = true; testBtn.hidden = true
+  sel.hidden = true; saveBtn.hidden = true; refreshBtn.hidden = true
   status.textContent = ""
 
   const r = await chrome.runtime.sendMessage({ type: "LIST_PRINTERS" })
 
   loading.hidden = true
-  sel.hidden = false; saveBtn.hidden = false; testBtn.hidden = false
+  sel.hidden = false; saveBtn.hidden = false; refreshBtn.hidden = false
 
   sel.innerHTML = '<option value="">— elegí una —</option>'
   if (!r?.ok) {
@@ -115,8 +132,33 @@ $("save-printer-btn").addEventListener("click", async () => {
     return
   }
   const r = await chrome.runtime.sendMessage({ type: "SET_PRIMARY_PRINTER", device_id: id })
-  $("printer-status").textContent = r?.ok ? "Guardada" : `Error: ${r?.error}`
-  $("printer-status").className = r?.ok ? "small ok" : "small err"
+  if (r?.ok) {
+    // Volver a la vista "vinculada" — el cajero NO quiere quedarse en el
+    // picker despues de elegir.
+    $("printer-current-name").textContent = id
+    $("printer-current").hidden = false
+    $("printer-picker").hidden = true
+    $("printer-status").textContent = "Guardada"
+    $("printer-status").className = "small ok"
+  } else {
+    $("printer-status").textContent = `Error: ${r?.error}`
+    $("printer-status").className = "small err"
+  }
+})
+
+$("change-printer-btn").addEventListener("click", async () => {
+  // Cambiar = abrir el picker (no destruye la primary actual; solo se sobreescribe
+  // al darle Guardar). El boton refresh dentro del picker permite re-enumerar.
+  $("printer-current").hidden = true
+  $("printer-picker").hidden = false
+  $("printer-status").textContent = ""
+  // Auto-busca al entrar al picker. Si el cajero cerro/abrio el popup despues
+  // de enchufar otra impresora, va a aparecer sin tener que clickear refresh.
+  await loadPrinters(null)
+})
+
+$("refresh-printers-btn").addEventListener("click", async () => {
+  await loadPrinters(null)
 })
 
 $("test-btn").addEventListener("click", async () => {
