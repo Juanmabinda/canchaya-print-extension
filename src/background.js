@@ -80,13 +80,13 @@ async function handlePairAgent({ code, server }) {
 }
 
 async function handleListPrinters() {
-  // chrome.printing.getPrinters lista impresoras instaladas en el SO. Tanto
-  // USB como LAN, fisicas y virtuales. Filtramos las virtuales obvias para
-  // que el cajero no se confunda eligiendo "Microsoft Print to PDF" como
-  // termica.
-  const printers = await chrome.printing.getPrinters()
-  const filtered = printers.filter((p) => !isVirtualPrinter(p))
-  return { ok: true, printers: filtered.map(serializePrinter) }
+  // chrome.printing solo existe en ChromeOS. En Win/Mac/Linux usamos el
+  // binario nativo via chrome.runtime.connectNative — el binario enumera
+  // las impresoras del SO y nos devuelve el array. Filtramos virtuales.
+  const resp = await nmSend({ type: "LIST_PRINTERS" })
+  if (resp?.type === "ERROR") throw new Error(resp.error || "list printers error")
+  const printers = (resp?.printers || []).filter((p) => !isVirtualPrinter(p))
+  return { ok: true, printers: printers.map((p) => ({ id: p.name, name: p.name, description: p.manufacturer || "" })) }
 }
 
 function isVirtualPrinter(p) {
@@ -101,16 +101,6 @@ function isVirtualPrinter(p) {
   ].some((needle) => name.includes(needle))
 }
 
-function serializePrinter(p) {
-  return {
-    id: p.id,
-    name: p.name,
-    description: p.description || "",
-    is_default: !!p.isDefault,
-    source: p.source || "USER"
-  }
-}
-
 async function handleSetPrimaryPrinter({ device_id }) {
   if (!device_id) throw new Error("device_id requerido")
   await chrome.storage.local.set({ [STORAGE_KEYS.PRIMARY_PRINTER]: device_id })
@@ -118,68 +108,107 @@ async function handleSetPrimaryPrinter({ device_id }) {
 }
 
 async function handlePrintTest() {
-  const { [STORAGE_KEYS.PRIMARY_PRINTER]: deviceId, [STORAGE_KEYS.CLUB_NAME]: clubName } =
+  const { [STORAGE_KEYS.PRIMARY_PRINTER]: printerName, [STORAGE_KEYS.CLUB_NAME]: clubName } =
     await chrome.storage.local.get([STORAGE_KEYS.PRIMARY_PRINTER, STORAGE_KEYS.CLUB_NAME])
-  if (!deviceId) throw new Error("Configurá una impresora primaria primero")
+  if (!printerName) throw new Error("Configurá una impresora primaria primero")
 
+  // ESC/POS minimal: texto + corte. Mientras no haya un encoder completo,
+  // alcanza para confirmar que la cadena extension → native app → printer
+  // funciona end-to-end.
   const text = `\n*** PRUEBA ***\n${clubName || CURRENT_BRAND.display_name}\n${new Date().toLocaleString("es-AR")}\n\nSi ves esto, la extension funciona.\n\n\n\n`
-  return submitJobAsPdf(deviceId, "Prueba", text)
+  const bytes = encodeMinimalEscPos(text)
+  return submitRawPrint(printerName, bytes)
 }
 
 async function handlePrintJob(msg) {
-  const { device_id, title, content, pdf_url, pdf_base64 } = msg
-  const storage = await chrome.storage.local.get([STORAGE_KEYS.PRIMARY_PRINTER, STORAGE_KEYS.TOKEN])
-  const target = device_id || storage[STORAGE_KEYS.PRIMARY_PRINTER]
-  if (!target) throw new Error("Sin impresora destino")
+  const { device_id, content, escpos_base64, pdf_base64 } = msg
+  const storage = await chrome.storage.local.get([STORAGE_KEYS.PRIMARY_PRINTER])
+  const printerName = device_id || storage[STORAGE_KEYS.PRIMARY_PRINTER]
+  if (!printerName) throw new Error("Sin impresora destino")
 
-  // 3 formas de pasar el contenido:
-  //   1. pdf_url: la extension lo descarga (preferida — el POS server genera
-  //      el PDF con toda la logica de layout / promos / fiscal y nos lo pasa).
-  //   2. pdf_base64: pasado directo (offline / agente local generado).
-  //   3. content (texto plano): generamos PDF minimal aca (legacy / debug).
-  let b64
-  if (pdf_url) {
-    b64 = await fetchPdfAsBase64(pdf_url, storage[STORAGE_KEYS.TOKEN])
+  // Por ahora soportamos solo bytes raw (ESC/POS). PDFs vienen en Fase 2 —
+  // requieren que el binario nativo los pasee a un job de impresion via
+  // GDI / Quartz en lugar de RAW directo al spooler.
+  let bytes
+  if (escpos_base64) {
+    bytes = escpos_base64
+  } else if (content) {
+    bytes = btoa(encodeMinimalEscPos(content))
   } else if (pdf_base64) {
-    b64 = pdf_base64
+    throw new Error("PDF printing — no soportado todavia (proxima version)")
   } else {
-    return submitJobAsPdf(target, title || "Ticket", content || "")
+    throw new Error("Sin contenido a imprimir")
   }
-  return submitB64Pdf(target, title || "Ticket", b64)
+  return submitRawPrint(printerName, bytes)
 }
 
-async function fetchPdfAsBase64(url, token) {
-  const headers = { "Accept": "application/pdf" }
-  // Authorization opcional: si el endpoint del POS exige autenticacion del
-  // agente para descargar, va el token. Endpoints publicos (signed URL) no
-  // lo necesitan — el header extra no molesta.
-  if (token) headers["Authorization"] = `Bearer ${token}`
-  const res = await fetch(url, { headers })
-  if (!res.ok) throw new Error(`PDF fetch falló (${res.status})`)
-  const buf = await res.arrayBuffer()
-  const u8 = new Uint8Array(buf)
-  let bin = ""
-  // Chunked para evitar stack overflow con PDFs >100KB.
-  const CHUNK = 0x8000
-  for (let i = 0; i < u8.length; i += CHUNK) {
-    bin += String.fromCharCode.apply(null, u8.subarray(i, i + CHUNK))
+// Encoder minimal de ESC/POS: solo texto + alimentaciones + corte.
+// Suficiente para tests. Encoder completo (codepage, alineaciones, qr,
+// barcode, bold, double-height) vendra en Fase 2.
+function encodeMinimalEscPos(text) {
+  const lines = text.replace(/\r/g, "").split("\n")
+  const ESC = 0x1b, GS = 0x1d
+  const bytes = []
+  // Init printer
+  bytes.push(ESC, 0x40)
+  for (const line of lines) {
+    for (let i = 0; i < line.length; i++) bytes.push(line.charCodeAt(i) & 0xff)
+    bytes.push(0x0a) // LF
   }
+  // Feed + cut
+  bytes.push(0x0a, 0x0a, 0x0a, 0x0a)
+  bytes.push(GS, 0x56, 0x00) // GS V 0 = full cut
+  // Convertir array a base64 sin pasar por Uint8Array intermedio explicito.
+  let bin = ""
+  for (const b of bytes) bin += String.fromCharCode(b)
   return btoa(bin)
 }
 
-async function submitB64Pdf(printerId, title, b64) {
-  const job = {
-    printerId,
-    title: title || "Ticket",
-    ticket: { version: "1.0" },
-    contentType: "application/pdf",
-    document: b64
+// Envia PRINT_RAW al binario nativo via Native Messaging.
+async function submitRawPrint(printerName, b64) {
+  const resp = await nmSend({
+    type: "PRINT_RAW",
+    printer_name: printerName,
+    b64
+  })
+  if (resp?.type === "PRINT_OK") {
+    return { ok: true, bytes: resp.bytes }
   }
-  const result = await chrome.printing.submitJob({ job })
-  if (result?.status === "OK" || result?.status === "INPROGRESS") {
-    return { ok: true, status: result.status, job_id: result.jobId }
-  }
-  throw new Error(`submitJob status=${result?.status || "UNKNOWN"}`)
+  throw new Error(resp?.error || "Print falló")
+}
+
+// nmSend: invoca el binario nativo y le manda un mensaje, espera la
+// respuesta y cierra. Cada nmSend levanta un proceso (Chrome reusa hasta
+// ~30s si el binario sigue vivo, pero como nosotros mandamos un mensaje y
+// cerramos, cada llamada es un round-trip simple).
+function nmSend(msg) {
+  return new Promise((resolve, reject) => {
+    let port
+    try {
+      port = chrome.runtime.connectNative(CURRENT_BRAND.native_host)
+    } catch (e) {
+      return reject(new Error(`Native app no instalada (${CURRENT_BRAND.native_host}): ${e?.message || e}`))
+    }
+    let settled = false
+    port.onMessage.addListener((response) => {
+      if (settled) return
+      settled = true
+      try { port.disconnect() } catch {}
+      resolve(response)
+    })
+    port.onDisconnect.addListener(() => {
+      if (settled) return
+      settled = true
+      const err = chrome.runtime.lastError?.message || "native port cerrado sin respuesta"
+      reject(new Error(err))
+    })
+    try {
+      port.postMessage(msg)
+    } catch (e) {
+      settled = true
+      reject(e)
+    }
+  })
 }
 
 async function handleGetStatus() {
@@ -194,64 +223,3 @@ async function handleGetStatus() {
   }
 }
 
-// === chrome.printing.submitJob helper ===
-//
-// chrome.printing solo acepta PDF. Para "imprimir texto plano" generamos un
-// PDF minimo on-the-fly con un layout monoespaciado 80mm. Cuando avancemos
-// a Fase 2 (ESC/POS directo), este wrapper se reemplaza por bytes raw via
-// chrome.printerProvider o por imprimir un PDF generado server-side.
-async function submitJobAsPdf(printerId, title, text) {
-  const pdfBlob = renderMinimalPdf(text)
-  const buf = await pdfBlob.arrayBuffer()
-  const u8 = new Uint8Array(buf)
-  let bin = ""
-  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i])
-  const b64 = btoa(bin)
-  return submitB64Pdf(printerId, title, b64)
-}
-
-// PDF minimo de texto monoespaciado — armado a mano para evitar dependencia
-// de pdf-lib en el service worker (que ya es chico, no queremos meter 500KB
-// de libreria solo para un wrapper que vamos a tirar al pasar a ESC/POS).
-//
-// 1 pagina A6 (~80mm ancho * 200mm alto) con texto en Courier. Suficiente
-// para prueba; para producción real generamos el PDF server-side.
-function renderMinimalPdf(text) {
-  const lines = text.split("\n")
-  const lineHeight = 14
-  const pageHeight = Math.max(200, lines.length * lineHeight + 40)
-  const pageWidth = 226 // ~80mm a 72dpi
-
-  // Stream de contenido: BT (begin text) … ET (end text) con cada linea.
-  let stream = `BT\n/F1 10 Tf\n14 ${pageHeight - 20} Td\n`
-  lines.forEach((line, i) => {
-    const escaped = line.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)")
-    if (i > 0) stream += `0 -${lineHeight} Td\n`
-    stream += `(${escaped}) Tj\n`
-  })
-  stream += "ET"
-
-  const streamLen = stream.length
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>`,
-    `<< /Length ${streamLen} >>\nstream\n${stream}\nendstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>"
-  ]
-
-  let pdf = "%PDF-1.4\n"
-  const offsets = [0]
-  objects.forEach((obj, i) => {
-    offsets.push(pdf.length)
-    pdf += `${i + 1} 0 obj\n${obj}\nendobj\n`
-  })
-  const xrefStart = pdf.length
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
-  for (let i = 1; i <= objects.length; i++) {
-    pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`
-  }
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`
-
-  return new Blob([pdf], { type: "application/pdf" })
-}

@@ -2,6 +2,34 @@
 
 const $ = (id) => document.getElementById(id)
 
+// Hosts validos del POS — coinciden con host_permissions del manifest.
+// Cuando el popup se abre, leemos la URL de la tab activa y, si matchea
+// un host del POS, usamos ese origen como server. Asi el cajero no
+// tiene que elegir entre prod / staging manualmente — se detecta del
+// browser.
+const POS_HOSTS = [
+  "mitiendapos.com.ar",
+  "staging.mitiendapos.com.ar",
+  "canchaya.ar",
+  "staging.canchaya.ar",
+  "canchalibre.app",
+  "staging.canchalibre.app"
+]
+
+let detectedServer = null  // origen autodetectado, null si no hay tab POS
+
+async function detectServerFromActiveTab() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!tab?.url) return null
+    const u = new URL(tab.url)
+    if (POS_HOSTS.includes(u.host)) return `${u.protocol}//${u.host}`
+    return null
+  } catch {
+    return null
+  }
+}
+
 async function refreshStatus() {
   const s = await chrome.runtime.sendMessage({ type: "GET_STATUS" })
   if (!s?.ok) return
@@ -45,7 +73,10 @@ $("pair-btn").addEventListener("click", async () => {
   }
   $("pair-status").textContent = "Conectando…"
   $("pair-status").className = "small muted"
-  const r = await chrome.runtime.sendMessage({ type: "PAIR_AGENT", code })
+  // detectedServer viene del auto-detect de la tab activa al cargar el
+  // popup. Si es null (no hay tab del POS abierta) el background usa
+  // CURRENT_BRAND.default_server (prod).
+  const r = await chrome.runtime.sendMessage({ type: "PAIR_AGENT", code, server: detectedServer })
   if (r?.ok) {
     $("pair-status").textContent = `OK — ${r.club_name || "club #" + r.club_id}`
     $("pair-status").className = "small ok"
@@ -83,4 +114,15 @@ $("test-btn").addEventListener("click", async () => {
   $("printer-status").className = r?.ok ? "small ok" : "small err"
 })
 
-refreshStatus()
+async function init() {
+  detectedServer = await detectServerFromActiveTab()
+  if (detectedServer) {
+    $("detected-server").textContent = `📡 ${new URL(detectedServer).host}`
+    $("detected-server").className = "small ok"
+  } else {
+    $("detected-server").textContent = "Abrí una pestaña del POS para detectar el server"
+  }
+  await refreshStatus()
+}
+
+init()

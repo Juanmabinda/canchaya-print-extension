@@ -19,12 +19,17 @@ export const BRANDS = {
     display_name: "Mi Tienda Print",
     source_id: "mitienda-print",
     default_server: "https://mitiendapos.com.ar",
+    // Nombre del Native Messaging Host. El binario nativo registra un
+    // manifest en este nombre — Chrome lo busca cuando la extension hace
+    // connectNative(NATIVE_HOST). Convencion: dominio invertido + ".print".
+    native_host: "ar.mitiendapos.print",
     color: "#f97316" // orange-500
   },
   canchaya: {
     display_name: "CanchaYa Print",
     source_id: "canchaya-print",
     default_server: "https://canchaya.ar",
+    native_host: "ar.canchaya.print",
     color: "#BEFF00" // lime
   }
 }
