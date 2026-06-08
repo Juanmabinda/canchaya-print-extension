@@ -25,9 +25,12 @@ const RESPONSE_SOURCE = `${BRAND}-print-response`
 // content_script no se esta inyectando (sin permisos al sitio, mismatch
 // de matches en manifest, o desactivada para este host).
 try {
-  console.info(`[${SOURCE}] content_script cargado v${chrome.runtime.getManifest().version}`)
+  // Debug — solo visible con DevTools en "Verbose". Sirve para confirmar
+  // version si hace falta debugear. console.info ensuciaba la consola en
+  // cada page load.
+  console.debug(`[${SOURCE}] content_script cargado v${chrome.runtime.getManifest().version}`)
 } catch (e) {
-  console.info(`[${SOURCE}] content_script cargado (sin runtime?)`, e)
+  console.debug(`[${SOURCE}] content_script cargado (sin runtime?)`, e)
 }
 
 window.addEventListener("message", async (event) => {

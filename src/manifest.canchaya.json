@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CanchaYa Print",
   "description": "Imprime comandas, tickets y etiquetas desde CanchaYa POS sin instalar agente externo. Soporta impresoras t\u00e9rmicas USB y LAN (cualquiera instalada en Windows/Mac).",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+rw7ihgpUCQUxKIqbn3250mjnahq55vmIjLAz9Ricdb5sXtVDnCoPxanAA0SdvJnq6kXCsHQUyDZEsAFhlkhI/Sc1HlXwn4k2n0tnLcANYkHMq64W0FCOV/VZevXDcYGBU+qSQvl+dE9AvrZKwdZcbDZKY4QLmRa8iBU8M33yOgtR2/DZzaSoGslprDF6qxUq5EpN+dN82CE38vFLz+P3YDb+mg68KTyQ8wjqA/xedt3o25nilRi/q+b/5UV1lP5+ZaH8IFs86ow+mBOUDwSspuHYlT7j1+CUZFrAkXVuqlGqbXFNkY6q85cHYwz4emokoscw9/b07VeD0iITtrfyQIDAQAB",
   "action": {
     "default_title": "CanchaYa Print",
