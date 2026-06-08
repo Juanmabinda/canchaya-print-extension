@@ -11,25 +11,27 @@
 set -e
 
 BRAND="${1:-mitienda}"  # mitienda o canchaya
-EXT_ID="${2:-}"         # ID de la extension cargada (chrome://extensions)
 
-if [ -z "$EXT_ID" ]; then
-  echo "Uso: $0 <brand> <extension_id>"
-  echo "  brand: 'mitienda' o 'canchaya'"
-  echo "  extension_id: el ID de la extension en chrome://extensions"
-  exit 1
-fi
-
-if [ "$BRAND" = "mitienda" ]; then
-  HOST_NAME="ar.mitiendapos.print"
-  BINARY_NAME="mitienda-print"
-elif [ "$BRAND" = "canchaya" ]; then
-  HOST_NAME="ar.canchaya.print"
-  BINARY_NAME="canchaya-print"
-else
-  echo "Brand invalido: $BRAND"
-  exit 1
-fi
+# IDs FIJOS calculados desde la "key" RSA hardcodeada en cada manifest.
+# Con la key fija el ID NO cambia entre dev/staging/prod ni entre maquinas
+# — siempre es el mismo. El cliente NO tiene que pegar nada: el installer
+# (.pkg / .msi) llama a este script con el brand correcto y listo.
+case "$BRAND" in
+  mitienda)
+    HOST_NAME="ar.mitiendapos.print"
+    BINARY_NAME="mitienda-print"
+    EXT_ID="mjjbahhakjijjaebjifddiocmmoilflo"
+    ;;
+  canchaya)
+    HOST_NAME="ar.canchaya.print"
+    BINARY_NAME="canchaya-print"
+    EXT_ID="nblbfplhkfcmmpilpamdcholgjkjpflg"
+    ;;
+  *)
+    echo "Brand invalido: $BRAND. Usar 'mitienda' o 'canchaya'."
+    exit 1
+    ;;
+esac
 
 # Ruta del binario. En production deberia estar en /Applications/<Brand> Print.app/Contents/MacOS/<binary>.
 # Para development apuntamos al binario en /tmp.

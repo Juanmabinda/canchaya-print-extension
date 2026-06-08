@@ -1,0 +1,52 @@
+#!/bin/bash
+set -e
+
+# IDs FIJOS calculados de la "key" RSA del manifest de la extension Chrome.
+# Como la key esta hardcodeada, el ID NO cambia entre dev/prod ni entre
+# instalaciones — siempre es el mismo. Por eso no hay que pedirle nada al
+# cliente.
+EXT_ID_MITIENDA="mjjbahhakjijjaebjifddiocmmoilflo"
+EXT_ID_CANCHAYA="nblbfplhkfcmmpilpamdcholgjkjpflg"
+
+BRAND="canchaya"
+HOST_NAME="ar.canchaya.print.agent"
+case "$BRAND" in
+  mitienda) HOST_NAME="ar.mitiendapos.print"; EXT_ID="$EXT_ID_MITIENDA" ;;
+  canchaya) HOST_NAME="ar.canchaya.print";    EXT_ID="$EXT_ID_CANCHAYA" ;;
+esac
+
+BINARY_PATH="/Library/Application Support/CanchaYaPrint/canchaya-print"
+
+# Detectar el HOME del usuario real (no root). Si el pkg corre con sudo,
+# $HOME puede ser /var/root — usamos USER_HOME del entorno o getent.
+TARGET_USER="${USER:-$(stat -f '%Su' /dev/console)}"
+USER_HOME=$(eval echo "~$TARGET_USER")
+
+# Chrome.
+CHROME_DIR="$USER_HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
+mkdir -p "$CHROME_DIR"
+cat > "$CHROME_DIR/$HOST_NAME.json" <<EOF
+{
+  "name": "$HOST_NAME",
+  "description": "CanchaYa Print Native Messaging Host",
+  "path": "$BINARY_PATH",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://$EXT_ID/"]
+}
+EOF
+chown "$TARGET_USER" "$CHROME_DIR/$HOST_NAME.json"
+
+# Edge (Chromium, mismo API).
+EDGE_DIR="$USER_HOME/Library/Application Support/Microsoft Edge/NativeMessagingHosts"
+mkdir -p "$EDGE_DIR"
+cp "$CHROME_DIR/$HOST_NAME.json" "$EDGE_DIR/$HOST_NAME.json"
+chown "$TARGET_USER" "$EDGE_DIR/$HOST_NAME.json"
+
+# Brave (Chromium).
+BRAVE_DIR="$USER_HOME/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts"
+mkdir -p "$BRAVE_DIR"
+cp "$CHROME_DIR/$HOST_NAME.json" "$BRAVE_DIR/$HOST_NAME.json"
+chown "$TARGET_USER" "$BRAVE_DIR/$HOST_NAME.json"
+
+echo "CanchaYa Print Native Messaging Host registrado para $TARGET_USER"
+exit 0
