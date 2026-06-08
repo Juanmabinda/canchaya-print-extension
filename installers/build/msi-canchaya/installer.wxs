@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="452FC9F4-F7BB-4376-81F5-E03D25333800"
+  <Product Id="BB757C5B-49AB-4A7C-9966-F4B516CCB996"
            Name="CanchaYa Print Agent"
            Language="1033"
-           Version="0.10.9.0"
+           Version="0.10.10.0"
            Manufacturer="CanchaYa"
            UpgradeCode="6c2d5a91-bf38-4612-a8d4-7e94d2c5b1c8">
 
@@ -17,7 +17,7 @@
          instala uno nuevo con version mayor. -->
     <Upgrade Id="6c2d5a91-bf38-4612-a8d4-7e94d2c5b1c8">
       <UpgradeVersion Minimum="0.0.0"
-                      Maximum="0.10.9.0"
+                      Maximum="0.10.10.0"
                       IncludeMinimum="yes"
                       IncludeMaximum="no"
                       Property="OLDERVERSIONBEINGUPGRADED" />
@@ -33,7 +33,7 @@
         <Directory Id="INSTALLDIR" Name="CanchaYaPrint">
 
           <Component Id="cmpBinary"
-                     Guid="554A55F4-7E4C-4969-AB96-15FE3D75A8E2"
+                     Guid="50604E78-3E44-48D4-9886-DC8F59454ADF"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\CanchaYa\CanchaYaPrint"
@@ -48,7 +48,7 @@
           </Component>
 
           <Component Id="cmpManifest"
-                     Guid="54AAB4B5-7F54-4A35-866F-651846B511FA"
+                     Guid="9C760748-6722-4523-9B08-B0678275433C"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\CanchaYa\CanchaYaPrint"
@@ -64,7 +64,7 @@
           <!-- Tres entries de registry, uno por navegador. KeyPath en el
                propio RegistryValue para que wix lo trackee. -->
           <Component Id="cmpRegChrome"
-                     Guid="8965758C-F2A7-4796-BD22-93AC9D35C986"
+                     Guid="74F2594C-6927-4010-B9BC-B64A9CAD110F"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Google\Chrome\NativeMessagingHosts\ar.canchaya.print">
@@ -75,7 +75,7 @@
           </Component>
 
           <Component Id="cmpRegEdge"
-                     Guid="F877DECF-1899-4511-B137-5CA2A6421237"
+                     Guid="3DE4C5D4-A1E2-4430-B3C3-AD87B091D0B3"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Microsoft\Edge\NativeMessagingHosts\ar.canchaya.print">
@@ -86,7 +86,7 @@
           </Component>
 
           <Component Id="cmpRegBrave"
-                     Guid="C222758B-7CFD-49F4-ADCE-23263F75CC86"
+                     Guid="48D4A065-EB45-40DC-92D4-5F1896DFA712"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\ar.canchaya.print">
