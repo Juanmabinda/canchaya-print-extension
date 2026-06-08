@@ -45,6 +45,74 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return true
 })
 
+// === Background polling (chrome.alarms) ===
+//
+// El consumer JS del POS solo polea pending mientras hay una pestaña
+// abierta. Para clubes con varias PCs donde alguna cierra el browser,
+// agregamos un alarm que despierta el service worker cada 30s y polea
+// el endpoint /api/extension/pending (auth por Bearer token). Asi no
+// se pierden jobs aunque ninguna pestaña este abierta.
+//
+// chrome.alarms minimum periodInMinutes en MV3 = 0.5 (30s).
+const ALARM_NAME = "ext-print-bg-poll"
+
+chrome.runtime.onInstalled.addListener(() => setupBackgroundPolling())
+chrome.runtime.onStartup.addListener(() => setupBackgroundPolling())
+
+async function setupBackgroundPolling() {
+  await chrome.alarms.create(ALARM_NAME, { periodInMinutes: 0.5 })
+  console.debug(`[${CURRENT_BRAND.id}-print] background polling armado (cada 30s)`)
+}
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== ALARM_NAME) return
+  await backgroundTick()
+})
+
+let _bgInFlight = false
+async function backgroundTick() {
+  if (_bgInFlight) return
+  _bgInFlight = true
+  try {
+    const storage = await chrome.storage.local.get([STORAGE_KEYS.TOKEN, STORAGE_KEYS.SERVER])
+    const token = storage[STORAGE_KEYS.TOKEN]
+    const baseUrl = (storage[STORAGE_KEYS.SERVER] || DEFAULT_SERVER).replace(/\/$/, "")
+    if (!token) return // no pareada — nada que hacer
+
+    const res = await fetch(`${baseUrl}/api/extension/pending`, {
+      method: "GET",
+      headers: { "Accept": "application/json", "Authorization": `Bearer ${token}` }
+    })
+    if (!res.ok) {
+      console.warn(`[ext-bg] pending fallo: HTTP ${res.status}`)
+      return
+    }
+    const { jobs } = await res.json()
+    if (!jobs?.length) return
+
+    console.info(`[ext-bg] ${jobs.length} job(s) — procesando desde background`)
+    for (const job of jobs) {
+      try {
+        const payload = job.payload || {}
+        const printTarget = payload.print_target || null
+        const nm_type = job.document_type === "shelf_label" ? "PRINT_LABEL" : "PRINT_COMANDA"
+        await handlePrintJob({ nm_type, job_payload: payload, print_target: printTarget })
+        // Marcar impreso server-side. Mismo endpoint API que el de la pestaña.
+        await fetch(`${baseUrl}/api/extension/mark_printed/${job.id}`, {
+          method: "POST",
+          headers: { "Accept": "application/json", "Authorization": `Bearer ${token}` }
+        })
+      } catch (e) {
+        console.error(`[ext-bg] job ${job.id} fallo:`, e?.message || e)
+      }
+    }
+  } catch (e) {
+    console.warn(`[ext-bg] tick error:`, e?.message || e)
+  } finally {
+    _bgInFlight = false
+  }
+}
+
 const MESSAGE_HANDLERS = {
   PAIR_AGENT: handlePairAgent,
   LIST_PRINTERS: handleListPrinters,
