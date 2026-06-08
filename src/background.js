@@ -101,10 +101,40 @@ function isVirtualPrinter(p) {
   ].some((needle) => name.includes(needle))
 }
 
-async function handleSetPrimaryPrinter({ device_id }) {
+async function handleSetPrimaryPrinter({ device_id, role }) {
   if (!device_id) throw new Error("device_id requerido")
   await chrome.storage.local.set({ [STORAGE_KEYS.PRIMARY_PRINTER]: device_id })
+
+  // Reportarlo al server para que se cree/upsert un Printer record. Sin esto
+  // el flujo de auto-imprimir del POS (Kiosk::PrintComanda) no encuentra a
+  // quien encolar — el server no sabe que la extension tiene una impresora
+  // configurada. Es analogo al `devices_discovered` que manda el agente Go
+  // por WebSocket.
+  try {
+    await reportPrinterToServer({ printerName: device_id, role: role || "mostrador" })
+  } catch (e) {
+    // No bloqueamos el guardado local si el reporte falla — el cajero igual
+    // puede usar la prueba. Solo loggeamos.
+    console.warn("[extension] upsert_printer fallo:", e?.message || e)
+  }
+
   return { ok: true }
+}
+
+async function reportPrinterToServer({ printerName, role }) {
+  const { [STORAGE_KEYS.TOKEN]: token, [STORAGE_KEYS.SERVER]: baseUrl } =
+    await chrome.storage.local.get([STORAGE_KEYS.TOKEN, STORAGE_KEYS.SERVER])
+  if (!token) throw new Error("Sin token — pareo no completado")
+  const url = `${(baseUrl || DEFAULT_SERVER).replace(/\/$/, "")}/api/extension/upsert_printer`
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ token, role, printer_name: printerName })
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data?.error || `upsert fallo (${res.status})`)
+  }
 }
 
 async function handlePrintTest() {
@@ -229,12 +259,24 @@ function nmSend(msg) {
 
 async function handleGetStatus() {
   const data = await chrome.storage.local.get(Object.values(STORAGE_KEYS))
+  const paired = !!data[STORAGE_KEYS.TOKEN]
+  const primary = data[STORAGE_KEYS.PRIMARY_PRINTER] || null
+
+  // Self-heal: si el cajero configuró la impresora ANTES de que existiera el
+  // upsert al server, la primera vez que abra el popup post-update se
+  // sincroniza solo. Idempotente — el server hace find_or_initialize_by(role).
+  if (paired && primary) {
+    reportPrinterToServer({ printerName: primary, role: "mostrador" }).catch((e) => {
+      console.warn("[extension] self-heal upsert fallo:", e?.message || e)
+    })
+  }
+
   return {
     ok: true,
-    paired: !!data[STORAGE_KEYS.TOKEN],
+    paired,
     club_id: data[STORAGE_KEYS.CLUB_ID] || null,
     club_name: data[STORAGE_KEYS.CLUB_NAME] || null,
-    primary_printer: data[STORAGE_KEYS.PRIMARY_PRINTER] || null,
+    primary_printer: primary,
     server: data[STORAGE_KEYS.SERVER] || DEFAULT_SERVER
   }
 }
