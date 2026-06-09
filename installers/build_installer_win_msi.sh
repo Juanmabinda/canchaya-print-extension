@@ -201,8 +201,9 @@ cat > "$BUILD_DIR/installer.wxs" <<WXS
       <RemoveExistingProducts After="InstallInitialize" />
       <!-- FixManifest se schedulea aca tambien (wixl solo tolera un
            InstallExecuteSequence por Product). After="InstallFiles" para que
-           el .ps1 ya este copiado al disco. -->
-      <Custom Action="FixManifest" After="InstallFiles">NOT Installed OR REINSTALL</Custom>
+           el .vbs ya este copiado al disco. Condition: solo se saltea en
+           uninstall puro (REMOVE="ALL"). En install + reinstall corre. -->
+      <Custom Action="FixManifest" After="InstallFiles">NOT REMOVE</Custom>
     </InstallExecuteSequence>
 
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />

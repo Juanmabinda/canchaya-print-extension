@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="A90F12F8-5792-4709-B871-B7CF67ECF81E"
+  <Product Id="41B78F23-6E17-4DE4-B43D-166DFD9AD7E1"
            Name="Mi Tienda Print Agent"
            Language="1033"
            Version="0.10.14.0"
@@ -26,8 +26,9 @@
       <RemoveExistingProducts After="InstallInitialize" />
       <!-- FixManifest se schedulea aca tambien (wixl solo tolera un
            InstallExecuteSequence por Product). After="InstallFiles" para que
-           el .ps1 ya este copiado al disco. -->
-      <Custom Action="FixManifest" After="InstallFiles">NOT Installed OR REINSTALL</Custom>
+           el .vbs ya este copiado al disco. Condition: solo se saltea en
+           uninstall puro (REMOVE="ALL"). En install + reinstall corre. -->
+      <Custom Action="FixManifest" After="InstallFiles">NOT REMOVE</Custom>
     </InstallExecuteSequence>
 
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />
@@ -37,7 +38,7 @@
         <Directory Id="INSTALLDIR" Name="MiTiendaPrint">
 
           <Component Id="cmpBinary"
-                     Guid="42FCB339-3EED-46BC-8BF0-084A8A5EEAAC"
+                     Guid="2EF3A2B3-5BC8-4F21-B62B-692E3CFE3F72"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\Mi Tienda POS\MiTiendaPrint"
@@ -52,7 +53,7 @@
           </Component>
 
           <Component Id="cmpManifest"
-                     Guid="CC37A3FA-C0C1-4783-AC1C-508B79FDC94F"
+                     Guid="D1C4D6BD-C411-4752-BA31-067742A8CB73"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\Mi Tienda POS\MiTiendaPrint"
@@ -75,7 +76,7 @@
           <!-- Tres entries de registry, uno por navegador. KeyPath en el
                propio RegistryValue para que wix lo trackee. -->
           <Component Id="cmpRegChrome"
-                     Guid="523187A8-04A1-4537-9EBA-F5FC6ED04807"
+                     Guid="09F0555C-70D5-4A82-8852-95E56E03DA5E"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Google\Chrome\NativeMessagingHosts\ar.mitiendapos.print">
@@ -86,7 +87,7 @@
           </Component>
 
           <Component Id="cmpRegEdge"
-                     Guid="CB118BBB-2853-41CB-9A02-BEF1BCA2A3DD"
+                     Guid="B8AAA4D9-0B37-43D7-91CB-E76F611E4908"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Microsoft\Edge\NativeMessagingHosts\ar.mitiendapos.print">
@@ -97,7 +98,7 @@
           </Component>
 
           <Component Id="cmpRegBrave"
-                     Guid="E6C11D24-A0D0-4AF2-9F59-53CE27FDC499"
+                     Guid="22FBD9B3-BC7F-4C65-9BFC-C945EF0F95ED"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\ar.mitiendapos.print">
