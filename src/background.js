@@ -70,6 +70,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 })
 
 let _bgInFlight = false
+let _lastHeartbeatAt = 0
 async function backgroundTick() {
   if (_bgInFlight) return
   _bgInFlight = true
@@ -78,6 +79,14 @@ async function backgroundTick() {
     const token = storage[STORAGE_KEYS.TOKEN]
     const baseUrl = (storage[STORAGE_KEYS.SERVER] || DEFAULT_SERVER).replace(/\/$/, "")
     if (!token) return // no pareada — nada que hacer
+
+    // Heartbeat cada 60s: reporta impresoras del SO al server para que la
+    // UI las muestre Online en modo extension (no hay agente WS).
+    const now = Date.now()
+    if (now - _lastHeartbeatAt > 60_000) {
+      _lastHeartbeatAt = now
+      sendHeartbeat(baseUrl, token).catch((e) => console.debug(`[ext-bg] heartbeat err:`, e?.message || e))
+    }
 
     const res = await fetch(`${baseUrl}/api/extension/pending`, {
       method: "GET",
@@ -111,6 +120,27 @@ async function backgroundTick() {
   } finally {
     _bgInFlight = false
   }
+}
+
+async function sendHeartbeat(baseUrl, token) {
+  // Enumerar impresoras del SO via el binario nativo. Si esto falla
+  // (binario no instalado), igual mandamos heartbeat vacio — el server
+  // sabe que la extension esta viva pero no ve ninguna impresora.
+  let printers = []
+  try {
+    const resp = await nmSend({ type: "LIST_PRINTERS" })
+    if (resp?.printers) {
+      printers = resp.printers.filter((p) => !isVirtualPrinter(p))
+                              .map((p) => ({ name: p.name }))
+    }
+  } catch (e) {
+    console.debug(`[ext-bg] heartbeat LIST_PRINTERS err:`, e?.message || e)
+  }
+  await fetch(`${baseUrl}/api/extension/heartbeat`, {
+    method: "POST",
+    headers: { "Accept": "application/json", "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    body: JSON.stringify({ printers })
+  })
 }
 
 const MESSAGE_HANDLERS = {

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="39EC96C1-E8D7-4BC1-B62C-646637114543"
+  <Product Id="6FDAFFD5-909C-4A66-8574-7247A910CCD9"
            Name="CanchaYa Print Agent"
            Language="1033"
-           Version="0.10.13.0"
+           Version="0.10.14.0"
            Manufacturer="CanchaYa"
            UpgradeCode="6c2d5a91-bf38-4612-a8d4-7e94d2c5b1c8">
 
@@ -17,7 +17,7 @@
          instala uno nuevo con version mayor. -->
     <Upgrade Id="6c2d5a91-bf38-4612-a8d4-7e94d2c5b1c8">
       <UpgradeVersion Minimum="0.0.0"
-                      Maximum="0.10.13.0"
+                      Maximum="0.10.14.0"
                       IncludeMinimum="yes"
                       IncludeMaximum="no"
                       Property="OLDERVERSIONBEINGUPGRADED" />
@@ -37,7 +37,7 @@
         <Directory Id="INSTALLDIR" Name="CanchaYaPrint">
 
           <Component Id="cmpBinary"
-                     Guid="4DDA0A31-A760-4B17-B3D6-1BFD30C98B29"
+                     Guid="21F91049-CC98-4F33-9B4D-8E852591CD03"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\CanchaYa\CanchaYaPrint"
@@ -52,7 +52,7 @@
           </Component>
 
           <Component Id="cmpManifest"
-                     Guid="9766716B-D177-459B-8F71-C417A1B0F0D8"
+                     Guid="C889DE13-2795-4C91-BE4C-DABB436CFBB5"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\CanchaYa\CanchaYaPrint"
@@ -64,16 +64,18 @@
                   Name="ar.canchaya.print.json"
                   Source="/Users/andress/juanma/canchaya-print-extension/installers/build/msi-canchaya/ar.canchaya.print.json" />
             <!-- Script de fixup que reescribe el JSON con path absoluto en
-                 postinstall (Chrome on Win requiere absoluto). -->
-            <File Id="filFixManifestPS1"
-                  Name="fix_manifest.ps1"
-                  Source="/Users/andress/juanma/canchaya-print-extension/installers/build/msi-canchaya/fix_manifest.ps1" />
+                 postinstall (Chrome on Win requiere absoluto). VBScript en
+                 lugar de PowerShell para compatibilidad con Win 7 (que viene
+                 con PowerShell 2.0 sin ConvertTo-Json). -->
+            <File Id="filFixManifestVBS"
+                  Name="fix_manifest.vbs"
+                  Source="/Users/andress/juanma/canchaya-print-extension/installers/build/msi-canchaya/fix_manifest.vbs" />
           </Component>
 
           <!-- Tres entries de registry, uno por navegador. KeyPath en el
                propio RegistryValue para que wix lo trackee. -->
           <Component Id="cmpRegChrome"
-                     Guid="5AC8D307-D7E6-47A5-9C33-872DCCB9DE44"
+                     Guid="BCF8DE9F-BADE-4C2D-9EAD-84E58561E611"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Google\Chrome\NativeMessagingHosts\ar.canchaya.print">
@@ -84,7 +86,7 @@
           </Component>
 
           <Component Id="cmpRegEdge"
-                     Guid="57191F60-A451-4CD9-955B-549302A9D194"
+                     Guid="1A5E4E15-4FEC-43FD-9032-839AB2BB2985"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Microsoft\Edge\NativeMessagingHosts\ar.canchaya.print">
@@ -95,7 +97,7 @@
           </Component>
 
           <Component Id="cmpRegBrave"
-                     Guid="594818D2-9925-4271-A6CF-01C0732BCE34"
+                     Guid="89E97B04-07EB-44FD-9106-F252C5439166"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\ar.canchaya.print">
@@ -117,15 +119,14 @@
       <ComponentRef Id="cmpRegBrave" />
     </Feature>
 
-    <!-- CustomAction: ejecuta fix_manifest.ps1 al final del install para
-         reescribir el JSON con el path absoluto del binario. Sin esto, Chrome
-         en Windows tira "Specified native messaging host not found".
-         El <Custom> que invoca esta accion vive en el primer
-         <InstallExecuteSequence> mas arriba (wixl solo tolera uno). -->
-    <Property Id="POWERSHELLEXE" Value="powershell.exe" />
+    <!-- CustomAction: ejecuta fix_manifest.vbs al final del install para
+         reescribir el JSON con el path absoluto del binario. Sin esto,
+         Chrome en Windows tira "Specified native messaging host not found".
+         VBScript con cscript.exe — estandar Win XP+ sin requerir PowerShell. -->
+    <Property Id="CSCRIPTEXE" Value="cscript.exe" />
     <CustomAction Id="FixManifest"
-                  Property="POWERSHELLEXE"
-                  ExeCommand='-NoProfile -ExecutionPolicy Bypass -File "[INSTALLDIR]fix_manifest.ps1" -Brand "canchaya"'
+                  Property="CSCRIPTEXE"
+                  ExeCommand='//nologo "[INSTALLDIR]fix_manifest.vbs" canchaya'
                   Execute="deferred"
                   Impersonate="yes"
                   Return="ignore" />

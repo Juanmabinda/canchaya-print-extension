@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="61E44474-84B8-4A2D-9BA6-5833A3804DD5"
+  <Product Id="A90F12F8-5792-4709-B871-B7CF67ECF81E"
            Name="Mi Tienda Print Agent"
            Language="1033"
-           Version="0.10.13.0"
+           Version="0.10.14.0"
            Manufacturer="Mi Tienda POS"
            UpgradeCode="3a5e1f02-7c44-4d97-9d3b-3a0c1e9f5b40">
 
@@ -17,7 +17,7 @@
          instala uno nuevo con version mayor. -->
     <Upgrade Id="3a5e1f02-7c44-4d97-9d3b-3a0c1e9f5b40">
       <UpgradeVersion Minimum="0.0.0"
-                      Maximum="0.10.13.0"
+                      Maximum="0.10.14.0"
                       IncludeMinimum="yes"
                       IncludeMaximum="no"
                       Property="OLDERVERSIONBEINGUPGRADED" />
@@ -37,7 +37,7 @@
         <Directory Id="INSTALLDIR" Name="MiTiendaPrint">
 
           <Component Id="cmpBinary"
-                     Guid="8DD1FBCD-69DC-44AB-96CD-052E83EE1945"
+                     Guid="42FCB339-3EED-46BC-8BF0-084A8A5EEAAC"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\Mi Tienda POS\MiTiendaPrint"
@@ -52,7 +52,7 @@
           </Component>
 
           <Component Id="cmpManifest"
-                     Guid="0DEB5818-6CDF-408C-8B0F-03D8EB489499"
+                     Guid="CC37A3FA-C0C1-4783-AC1C-508B79FDC94F"
                      Win64="yes">
             <RegistryValue Root="HKCU"
                            Key="Software\Mi Tienda POS\MiTiendaPrint"
@@ -64,16 +64,18 @@
                   Name="ar.mitiendapos.print.json"
                   Source="/Users/andress/juanma/canchaya-print-extension/installers/build/msi-mitienda/ar.mitiendapos.print.json" />
             <!-- Script de fixup que reescribe el JSON con path absoluto en
-                 postinstall (Chrome on Win requiere absoluto). -->
-            <File Id="filFixManifestPS1"
-                  Name="fix_manifest.ps1"
-                  Source="/Users/andress/juanma/canchaya-print-extension/installers/build/msi-mitienda/fix_manifest.ps1" />
+                 postinstall (Chrome on Win requiere absoluto). VBScript en
+                 lugar de PowerShell para compatibilidad con Win 7 (que viene
+                 con PowerShell 2.0 sin ConvertTo-Json). -->
+            <File Id="filFixManifestVBS"
+                  Name="fix_manifest.vbs"
+                  Source="/Users/andress/juanma/canchaya-print-extension/installers/build/msi-mitienda/fix_manifest.vbs" />
           </Component>
 
           <!-- Tres entries de registry, uno por navegador. KeyPath en el
                propio RegistryValue para que wix lo trackee. -->
           <Component Id="cmpRegChrome"
-                     Guid="07098344-79ED-40B4-89AF-2BB0511AE35D"
+                     Guid="523187A8-04A1-4537-9EBA-F5FC6ED04807"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Google\Chrome\NativeMessagingHosts\ar.mitiendapos.print">
@@ -84,7 +86,7 @@
           </Component>
 
           <Component Id="cmpRegEdge"
-                     Guid="6A901415-0D08-4528-8422-7B0A388FAA5E"
+                     Guid="CB118BBB-2853-41CB-9A02-BEF1BCA2A3DD"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\Microsoft\Edge\NativeMessagingHosts\ar.mitiendapos.print">
@@ -95,7 +97,7 @@
           </Component>
 
           <Component Id="cmpRegBrave"
-                     Guid="F96F8EFB-B4CE-4A0C-BC82-5976845378F5"
+                     Guid="E6C11D24-A0D0-4AF2-9F59-53CE27FDC499"
                      Win64="yes">
             <RegistryKey Root="HKCU"
                          Key="Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\ar.mitiendapos.print">
@@ -117,15 +119,14 @@
       <ComponentRef Id="cmpRegBrave" />
     </Feature>
 
-    <!-- CustomAction: ejecuta fix_manifest.ps1 al final del install para
-         reescribir el JSON con el path absoluto del binario. Sin esto, Chrome
-         en Windows tira "Specified native messaging host not found".
-         El <Custom> que invoca esta accion vive en el primer
-         <InstallExecuteSequence> mas arriba (wixl solo tolera uno). -->
-    <Property Id="POWERSHELLEXE" Value="powershell.exe" />
+    <!-- CustomAction: ejecuta fix_manifest.vbs al final del install para
+         reescribir el JSON con el path absoluto del binario. Sin esto,
+         Chrome en Windows tira "Specified native messaging host not found".
+         VBScript con cscript.exe — estandar Win XP+ sin requerir PowerShell. -->
+    <Property Id="CSCRIPTEXE" Value="cscript.exe" />
     <CustomAction Id="FixManifest"
-                  Property="POWERSHELLEXE"
-                  ExeCommand='-NoProfile -ExecutionPolicy Bypass -File "[INSTALLDIR]fix_manifest.ps1" -Brand "mitienda"'
+                  Property="CSCRIPTEXE"
+                  ExeCommand='//nologo "[INSTALLDIR]fix_manifest.vbs" mitienda'
                   Execute="deferred"
                   Impersonate="yes"
                   Return="ignore" />

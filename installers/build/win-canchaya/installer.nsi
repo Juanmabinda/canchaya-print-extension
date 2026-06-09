@@ -2,14 +2,14 @@
 ; Instala el binario en %LOCALAPPDATA%\CanchaYaPrint\ y registra el NM host.
 
 !define APP_NAME "CanchaYa Print Agent"
-!define APP_VERSION "0.10.5"
+!define APP_VERSION "0.10.14"
 !define INSTALL_FOLDER "CanchaYaPrint"
 !define BINARY_NAME "canchaya-print.exe"
 !define HOST_NAME "ar.canchaya.print"
 !define EXT_ID "nblbfplhkfcmmpilpamdcholgjkjpflg"
 
 Name "${APP_NAME}"
-OutFile "/Users/andress/juanma/canchaya-print-extension/installers/dist\CanchaYaPrintAgent-0.10.5.exe"
+OutFile "/Users/andress/juanma/canchaya-print-extension/installers/dist\CanchaYaPrintAgent-0.10.14.exe"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
 InstallDir "$LOCALAPPDATA\${INSTALL_FOLDER}"

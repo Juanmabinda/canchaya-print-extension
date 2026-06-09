@@ -96,45 +96,70 @@ cat > "$BUILD_DIR/${HOST_NAME}.json" <<JSON
 }
 JSON
 
-# El postinstall .ps1. Corre en contexto del usuario que instala (gracias a
-# Impersonate="yes" + Execute="commit") y resuelve %LOCALAPPDATA% a la ruta
-# real. Para Edge y Brave tambien — copia el JSON corregido a los 3 paths
-# de NM hosts si los navegadores estan instalados.
-cat > "$BUILD_DIR/fix_manifest.ps1" <<'PS'
-param([string]$Brand)
-$ErrorActionPreference = "Continue"
-$installDir = if ($Brand -eq "canchaya") { "CanchaYaPrint" } else { "MiTiendaPrint" }
-$binaryName = if ($Brand -eq "canchaya") { "canchaya-print.exe" } else { "mitienda-print.exe" }
-$hostName   = if ($Brand -eq "canchaya") { "ar.canchaya.print" } else { "ar.mitiendapos.print" }
-$extId      = if ($Brand -eq "canchaya") { "nblbfplhkfcmmpilpamdcholgjkjpflg" } else { "mjjbahhakjijjaebjifddiocmmoilflo" }
-$display    = if ($Brand -eq "canchaya") { "CanchaYa Print" } else { "Mi Tienda Print" }
+# El postinstall .vbs. Usamos VBScript porque corre en cualquier Windows
+# desde XP sin necesidad de PowerShell 3.0+ (Win 7 viene con PS 2.0 que NO
+# tiene ConvertTo-Json). cscript.exe es estandar en todos los Windows.
+# Resuelve %LOCALAPPDATA% en runtime, escribe el JSON con path absoluto.
+cat > "$BUILD_DIR/fix_manifest.vbs" <<'VBS'
+' fix_manifest.vbs <brand>
+' Reescribe el manifest JSON del NM host con el path absoluto del binario.
+Option Explicit
 
-$dir = Join-Path $env:LOCALAPPDATA $installDir
-$binPath = Join-Path $dir $binaryName
-$jsonPath = Join-Path $dir "$hostName.json"
+Dim brand
+brand = ""
+If WScript.Arguments.Count > 0 Then
+  brand = LCase(WScript.Arguments(0))
+End If
 
-$obj = [ordered]@{
-  name = $hostName
-  description = "$display Native Messaging Host"
-  path = $binPath
-  type = "stdio"
-  allowed_origins = @("chrome-extension://$extId/")
-}
-$json = $obj | ConvertTo-Json -Depth 5
-Set-Content -Path $jsonPath -Value $json -Encoding UTF8
+Dim installDir, binaryName, hostName, extId, display
+If brand = "canchaya" Then
+  installDir = "CanchaYaPrint"
+  binaryName = "canchaya-print.exe"
+  hostName = "ar.canchaya.print"
+  extId = "nblbfplhkfcmmpilpamdcholgjkjpflg"
+  display = "CanchaYa Print"
+Else
+  installDir = "MiTiendaPrint"
+  binaryName = "mitienda-print.exe"
+  hostName = "ar.mitiendapos.print"
+  extId = "mjjbahhakjijjaebjifddiocmmoilflo"
+  display = "Mi Tienda Print"
+End If
 
-# Tambien copiamos a Edge y Brave si tienen sus paths de NM hosts
-# expandidos (sino, Chrome solo usa registry → lee el del registry que
-# apunta a [INSTALLDIR]<host>.json, que es el que acabamos de reescribir).
-# No es necesario duplicar el archivo — los 3 registry keys ya apuntan al
-# mismo JSON. Pero verifico que la escritura quedo bien.
-if (Test-Path $jsonPath) {
-  Write-Host "Manifest reescrito en $jsonPath con path absoluto."
-} else {
-  Write-Error "ERROR: no se pudo escribir $jsonPath"
-  exit 1
-}
-PS
+Dim shell, localAppData, dir, binPath, jsonPath
+Set shell = CreateObject("WScript.Shell")
+localAppData = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%")
+dir = localAppData & "\" & installDir
+binPath = dir & "\" & binaryName
+jsonPath = dir & "\" & hostName & ".json"
+
+' Asegurar que el directorio existe (deberia, lo crea el .msi)
+Dim fso
+Set fso = CreateObject("Scripting.FileSystemObject")
+If Not fso.FolderExists(dir) Then
+  fso.CreateFolder dir
+End If
+
+' Escapar las barras para JSON
+Dim binPathJson
+binPathJson = Replace(binPath, "\", "\\")
+
+Dim json
+json = "{" & vbCrLf
+json = json & "  ""name"": """ & hostName & """," & vbCrLf
+json = json & "  ""description"": """ & display & " Native Messaging Host""," & vbCrLf
+json = json & "  ""path"": """ & binPathJson & """," & vbCrLf
+json = json & "  ""type"": ""stdio""," & vbCrLf
+json = json & "  ""allowed_origins"": [""chrome-extension://" & extId & "/""]" & vbCrLf
+json = json & "}"
+
+Dim file
+Set file = fso.OpenTextFile(jsonPath, 2, True) ' 2 = ForWriting
+file.Write json
+file.Close
+
+WScript.Echo "Manifest reescrito: " & jsonPath
+VBS
 
 # 3. Generar GUIDs deterministicos para los componentes (uno por archivo,
 # uno por registry value). wixl matchea por GUID al hacer upgrade.
@@ -214,10 +239,12 @@ cat > "$BUILD_DIR/installer.wxs" <<WXS
                   Name="${HOST_NAME}.json"
                   Source="${BUILD_DIR}/${HOST_NAME}.json" />
             <!-- Script de fixup que reescribe el JSON con path absoluto en
-                 postinstall (Chrome on Win requiere absoluto). -->
-            <File Id="filFixManifestPS1"
-                  Name="fix_manifest.ps1"
-                  Source="${BUILD_DIR}/fix_manifest.ps1" />
+                 postinstall (Chrome on Win requiere absoluto). VBScript en
+                 lugar de PowerShell para compatibilidad con Win 7 (que viene
+                 con PowerShell 2.0 sin ConvertTo-Json). -->
+            <File Id="filFixManifestVBS"
+                  Name="fix_manifest.vbs"
+                  Source="${BUILD_DIR}/fix_manifest.vbs" />
           </Component>
 
           <!-- Tres entries de registry, uno por navegador. KeyPath en el
@@ -267,15 +294,14 @@ cat > "$BUILD_DIR/installer.wxs" <<WXS
       <ComponentRef Id="cmpRegBrave" />
     </Feature>
 
-    <!-- CustomAction: ejecuta fix_manifest.ps1 al final del install para
-         reescribir el JSON con el path absoluto del binario. Sin esto, Chrome
-         en Windows tira "Specified native messaging host not found".
-         El <Custom> que invoca esta accion vive en el primer
-         <InstallExecuteSequence> mas arriba (wixl solo tolera uno). -->
-    <Property Id="POWERSHELLEXE" Value="powershell.exe" />
+    <!-- CustomAction: ejecuta fix_manifest.vbs al final del install para
+         reescribir el JSON con el path absoluto del binario. Sin esto,
+         Chrome en Windows tira "Specified native messaging host not found".
+         VBScript con cscript.exe — estandar Win XP+ sin requerir PowerShell. -->
+    <Property Id="CSCRIPTEXE" Value="cscript.exe" />
     <CustomAction Id="FixManifest"
-                  Property="POWERSHELLEXE"
-                  ExeCommand='-NoProfile -ExecutionPolicy Bypass -File "[INSTALLDIR]fix_manifest.ps1" -Brand "${BRAND}"'
+                  Property="CSCRIPTEXE"
+                  ExeCommand='//nologo "[INSTALLDIR]fix_manifest.vbs" ${BRAND}'
                   Execute="deferred"
                   Impersonate="yes"
                   Return="ignore" />
